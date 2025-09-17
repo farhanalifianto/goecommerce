@@ -1,0 +1,148 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
+)
+
+type User struct {
+	ID       uint   `gorm:"primaryKey" json:"id"`
+	Email    string `gorm:"uniqueIndex" json:"email"`
+	Password string `json:"-"`
+	Name     string `json:"name"`
+	Role     string `json:"role"` // "user" or "admin"
+}
+
+var db *gorm.DB
+var jwtSecret string
+
+func initDB() {
+	host := getEnv("DB_HOST", "localhost")
+	port := getEnv("DB_PORT", "5432")
+	user := getEnv("DB_USER", "postgres")
+	pass := getEnv("DB_PASS", "postgres")
+	name := getEnv("DB_NAME", "userdb")
+
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC", host, user, pass, name, port)
+	var err error
+	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		log.Fatal("failed to connect db:", err)
+	}
+	if err := db.AutoMigrate(&User{}); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func main() {
+	initDB()
+	jwtSecret = getEnv("JWT_SECRET", "secret")
+
+	app := fiber.New()
+	app.Use(logger.New())
+
+	api := app.Group("/api")
+	u := api.Group("/users")
+
+	u.Post("/register", register)
+	u.Post("/login", login)
+	u.Get("/me", authRequired, me)
+	
+	app.Listen(":3001")
+}
+
+func register(c *fiber.Ctx) error {
+	in := struct {
+		Email string `json:"email"`
+		Password string `json:"password"`
+		Name string `json:"name"`
+	}{}
+	if err := c.BodyParser(&in); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
+	}
+	if in.Email == "" || in.Password == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "email and password required"})
+	}
+
+	hashed, _ := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+	user := User{Email: in.Email, Password: string(hashed), Name: in.Name, Role: "user"}
+	if err := db.Create(&user).Error; err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "email already used"})
+	}
+	return c.JSON(fiber.Map{"id": user.ID, "email": user.Email, "name": user.Name})
+}
+
+func login(c *fiber.Ctx) error {
+	in := struct {
+		Email string `json:"email"`
+		Password string `json:"password"`
+	}{}
+	if err := c.BodyParser(&in); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
+	}
+	var user User
+	if err := db.Where("email = ?", in.Email).First(&user).Error; err != nil {
+		return c.Status(401).JSON(fiber.Map{"error": "invalid credentials"})
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(in.Password)); err != nil {
+		return c.Status(401).JSON(fiber.Map{"error": "invalid credentials"})
+	}
+
+	claims := jwt.MapClaims{
+		"sub": user.ID,
+		"email": user.Email,
+		"role": user.Role,
+		"exp": time.Now().Add(time.Hour * 72).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, _ := token.SignedString([]byte(jwtSecret))
+
+	return c.JSON(fiber.Map{"access_token": signed})
+}
+
+func me(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uint)
+	var user User
+	db.First(&user, userID)
+	return c.JSON(fiber.Map{"id": user.ID, "email": user.Email, "name": user.Name, "role": user.Role})
+}
+
+func authRequired(c *fiber.Ctx) error {
+	header := c.Get("Authorization")
+	if header == "" {
+		return c.Status(401).JSON(fiber.Map{"error":"missing auth"})
+	}
+	var tokenStr string
+	fmt.Sscanf(header, "Bearer %s", &tokenStr)
+	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+		return []byte(jwtSecret), nil
+	})
+	if err != nil || !token.Valid {
+		return c.Status(401).JSON(fiber.Map{"error":"invalid token"})
+	}
+	claims := token.Claims.(jwt.MapClaims)
+	// get subject as float64 -> convert
+	sub := uint(claims["sub"].(float64))
+	c.Locals("user_id", sub)
+	c.Locals("user_email", claims["email"].(string))
+	c.Locals("user_role", claims["role"].(string))
+	return c.Next()
+}
+
+func getEnv(k, d string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return d
+}

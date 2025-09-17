@@ -1,0 +1,172 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+)
+
+type Product struct {
+	ID        uint   `gorm:"primaryKey" json:"id"`
+	Name      string `json:"name"`
+	Desc      string `json:"desc"`
+	OwnerID   uint   `json:"owner_id"`
+	CreatedAt time.Time `json:"created_at"`
+	Price     float64 `json:"price"`
+}
+
+var db *gorm.DB
+var userServiceURL string
+
+func initDB() {
+	host := getEnv("DB_HOST", "localhost")
+	port := getEnv("DB_PORT", "5432")
+	user := getEnv("DB_USER", "postgres")
+	pass := getEnv("DB_PASS", "postgres")
+	name := getEnv("DB_NAME", "productdb")
+
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC", host, user, pass, name, port)
+	var err error
+	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		log.Fatal("failed to connect product db:", err)
+	}
+	if err := db.AutoMigrate(&Product{}); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func mainxs() {
+	initDB()
+	userServiceURL = getEnv("USER_SERVICE_URL", "http://localhost:3001")
+
+	app := fiber.New()
+	app.Use(logger.New())
+
+	api := app.Group("/api")
+	p := api.Group("/products")
+
+	p.Get("/", listProducts)
+	p.Get("/:id", getProduct)
+	p.Post("/", authRequired, createProduct)
+	p.Put("/:id", authRequired, updateProduct)
+	p.Delete("/:id", authRequired, deleteProduct)
+	
+	
+	app.Listen(":3002")
+}
+
+func listProducts(c *fiber.Ctx) error {
+	var products []Product
+	db.Find(&products)
+	return c.JSON(products)
+}
+
+func getProduct(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+	var p Product
+	if err := db.First(&p, id).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error":"not found"})
+	}
+	return c.JSON(p)
+}
+
+func createProduct(c *fiber.Ctx) error {
+	userID := c.Locals("user_id").(uint)
+	in := Product{}
+	if err := c.BodyParser(&in); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error":"invalid payload"})
+	}
+	in.OwnerID = userID
+	if err := db.Create(&in).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error":"create failed"})
+	}
+	return c.JSON(in)
+}
+
+func updateProduct(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+	userID := c.Locals("user_id").(uint)
+	userRole := c.Locals("user_role").(string)
+
+	var p Product
+	if err := db.First(&p, id).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error":"not found"})
+	}
+	if p.OwnerID != userID && userRole != "admin" {
+		return c.Status(403).JSON(fiber.Map{"error":"forbidden"})
+	}
+	if err := c.BodyParser(&p); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error":"invalid payload"})
+	}
+	db.Save(&p)
+	return c.JSON(p)
+}
+
+func deleteProduct(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+	userID := c.Locals("user_id").(uint)
+	userRole := c.Locals("user_role").(string)
+
+	var p Product
+	if err := db.First(&p, id).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error":"not found"})
+	}
+	if p.OwnerID != userID && userRole != "admin" {
+		return c.Status(403).JSON(fiber.Map{"error":"forbidden"})
+	}
+	db.Delete(&p)
+	return c.SendStatus(204)
+}
+
+// --- AUTH MIDDLEWARE (verifies token by calling user-service /api/users/verify or parse local token)
+// For simplicity, we'll call user-service /api/users/me with Authorization to verify token and get user id/role.
+func authRequired(c *fiber.Ctx) error {
+	auth := c.Get("Authorization")
+	if auth == "" {
+		return c.Status(401).JSON(fiber.Map{"error":"missing auth"})
+	}
+	// call user-service /api/users/me
+	req, _ := http.NewRequest("GET", userServiceURL+"/api/users/me", nil)
+	req.Header.Set("Authorization", auth)
+	client := &http.Client{Timeout: time.Second * 5}
+	resp, err := client.Do(req)
+	if err != nil {
+		return c.Status(401).JSON(fiber.Map{"error":"auth failed"})
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return c.Status(401).JSON(fiber.Map{"error":"invalid token"})
+	}
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(resp.Body)
+	var user struct {
+		ID uint `json:"id"`
+		Email string `json:"email"`
+		Role string `json:"role"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &user); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error":"decode failed"})
+	}
+	c.Locals("user_id", user.ID)
+	c.Locals("user_role", user.Role)
+	return c.Next()
+}
+
+func getEnv(k, d string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return d
+}
