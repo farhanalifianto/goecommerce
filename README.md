@@ -41,15 +41,49 @@ This repository contains the codebase for a Go-based e-commerce application. It 
 
 ```text
 .
-├── docker-compose.yml
+
 ├── nginx
-│   └── ...
+│   └── nginx.conf
 ├── product-service
-│   └── ...
+│   ├── controller
+│   │    └── product-controller.go
+│   ├── routes
+│   │    └── product-routes.go
+│   ├── middleware
+│   │    └── auth.go
+│   ├── model
+│   │    └── product.go
+│   ├── main.go
+│   ├── Dockerfile
+│   ├── go.mod
+│   └── go.sum
 ├── transaction-service
-│   └── ...
+│   ├── controller
+│   │    └── transaction-controller.go
+│   ├── routes
+│   │    └── transaction-routes.go
+│   ├── middleware
+│   │    └── auth.go
+│   ├── model
+│   │    └── transaction.go
+│   ├── main.go
+│   ├── Dockerfile
+│   ├── go.mod
+│   └── go.sum
 └── user-service
-    └── ...
+│   ├── controller
+│   │    └── user-controller.go
+│   ├── routes
+│   │    └── user-routes.go
+│   ├── middleware
+│   │    └── auth.go
+│   ├── model
+│   │    └── user.go
+│   ├── main.go
+│   ├── Dockerfile
+│   ├── go.mod
+│   └── go.sum
+└── docker-compose.yml
 ```
 
 ## Prerequisites
