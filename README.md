@@ -33,6 +33,7 @@ This repository contains the codebase for a Go-based e-commerce application. It 
 ## Tech Stack / Key Dependencies
 
 - Go
+- Fiber
 - Docker
 - Docker Compose
 - Nginx
