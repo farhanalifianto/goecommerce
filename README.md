@@ -135,4 +135,4 @@ No license was explicitly found. All rights reserved.
 
 ## Contact
 
-Your Name - [https://github.com/farhanalifianto/goecommerce](https://github.com/farhanalifianto/goecommerce) - email@example.com
+Farhan Alifianto - [https://github.com/farhanalifianto/goecommerce](https://github.com/farhanalifianto/goecommerce) - farhanalifianto@gmail.com
