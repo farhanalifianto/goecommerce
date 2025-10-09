@@ -16,55 +16,80 @@ import (
 type TransactionController struct {
 	DB               *gorm.DB
 	ProductServiceURL string
+	ProductService	  string
 }
 
 // CreateTransaction - membuat transaksi baru
 func (tc *TransactionController) CreateTransaction(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uint)
+	var req struct {
+			ProductID uint   `json:"product_id"`
+			Variant   string `json:"variant"`
+			Qty       int    `json:"qty"`
+			AddressID uint   `json:"address_id"`
+		}
 
-	var body struct {
-		ProductID uint    `json:"product_id"`
-		Qty       int     `json:"qty"`
-		Amount    float64 `json:"amount"`
-	}
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
-	}
-	if body.Qty <= 0 {
-		return c.Status(400).JSON(fiber.Map{"error": "qty must be > 0"})
-	}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
+		}
 
-	// Panggil product-service untuk decrement stock
-	decReq := map[string]int{"qty": body.Qty}
-	decBody, _ := json.Marshal(decReq)
-	req, _ := http.NewRequest(
-		"POST",
-		fmt.Sprintf("%s/api/products/%d/decrement", tc.ProductServiceURL, body.ProductID),
-		bytes.NewReader(decBody),
-	)
-	req.Header.Set("Content-Type", "application/json")
+		userID := c.Locals("user_id").(uint)
 
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
-		return c.Status(400).JSON(fiber.Map{"error": "failed to reserve stock"})
-	}
-	defer resp.Body.Close()
+		// 1️⃣ Kurangi stok di product-service
+		reduceURL := fmt.Sprintf("%s/api/products/%d/reduce", tc.ProductService, req.ProductID)
+		payload, _ := json.Marshal(map[string]interface{}{
+			"variant": req.Variant,
+			"qty":     req.Qty,
+		})
 
-	
-	txn := model.Transaction{
-		UserID:    userID,
-		ProductID: body.ProductID,
-		Qty:       body.Qty,
-		Amount:    body.Amount,
-		Status:    "created",
-		CreatedAt: time.Now(),
-	}
-	if err := tc.DB.Create(&txn).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to save transaction"})
-	}
+		resp, err := http.Post(reduceURL, "application/json", bytes.NewBuffer(payload))
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to connect to product-service"})
+		}
+		defer resp.Body.Close()
 
-	return c.Status(201).JSON(txn)
+		if resp.StatusCode != 200 {
+			var errRes map[string]interface{}
+			json.NewDecoder(resp.Body).Decode(&errRes)
+			return c.Status(resp.StatusCode).JSON(fiber.Map{"error": errRes["error"]})
+		}
+
+		// 2️⃣ Ambil harga produk dari product-service
+		productURL := fmt.Sprintf("%s/api/products/%d", tc.ProductService, req.ProductID)
+		prodResp, err := http.Get(productURL)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch product"})
+		}
+		defer prodResp.Body.Close()
+
+		if prodResp.StatusCode != 200 {
+			return c.Status(prodResp.StatusCode).JSON(fiber.Map{"error": "product not found"})
+		}
+
+		var product struct {
+			ID    uint   `json:"id"`
+			Name  string `json:"name"`
+			Price float64 `json:"price"`
+		}
+		if err := json.NewDecoder(prodResp.Body).Decode(&product); err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "invalid product response"})
+		}
+
+		// 3️⃣ Buat transaksi di DB
+		transaction := model.Transaction{
+			UserID:    userID,
+			ProductID: req.ProductID,
+			AddressID: req.AddressID,
+			Qty:       req.Qty,
+			Amount:    float64(req.Qty) * product.Price,
+			Status:    "pending",
+			CreatedAt: time.Now(),
+		}
+
+		if err := tc.DB.Create(&transaction).Error; err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to create transaction"})
+		}
+
+		return c.Status(201).JSON(transaction)
 }
 
 

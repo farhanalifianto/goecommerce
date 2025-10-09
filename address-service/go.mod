@@ -1,4 +1,4 @@
-module transaction-service
+module address-service
 
 go 1.24.3
 

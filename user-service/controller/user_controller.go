@@ -21,6 +21,8 @@ func (uc *UserController) Register(c *fiber.Ctx) error {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 		Name     string `json:"name"`
+		Role	 string `json:"role"`
+
 	}{}
 	if err := c.BodyParser(&in); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})

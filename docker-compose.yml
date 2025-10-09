@@ -14,20 +14,6 @@ services:
     networks:
       - app-network
 
-  txn-db:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: txn_db
-    volumes:
-      - txn-db-data:/var/lib/postgresql/data
-    ports:
-      - "5435:5432"
-    networks:
-      - app-network
-
   product-db:
     image: postgres:15
     restart: always
@@ -39,6 +25,34 @@ services:
       - product-db-data:/var/lib/postgresql/data
     ports:
       - "5434:5432"
+    networks:
+      - app-network
+
+  address-db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: addressdb
+    volumes:
+      - address-db-data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+    networks:
+      - app-network
+
+  txn-db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: txn_db
+    volumes:
+      - txn-db-data:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
     networks:
       - app-network
 
@@ -77,6 +91,24 @@ services:
     networks:
       - app-network
 
+  address-service:
+    build: ./address-service
+    container_name: address-service
+    environment:
+      - DB_HOST=address-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASS=postgres
+      - DB_NAME=addressdb
+      - USER_SERVICE_URL=http://user-service:3001
+    depends_on:
+      - address-db
+      - user-service
+    ports:
+      - "3003:3003"
+    networks:
+      - app-network
+
   transaction-service:
     build: ./transaction-service
     container_name: transaction-service
@@ -93,7 +125,7 @@ services:
       - user-service
       - product-service
     ports:
-      - "3003:3003"
+      - "3004:3004"
     networks:
       - app-network
 
@@ -108,6 +140,7 @@ services:
     depends_on:
       - user-service
       - product-service
+      - address-service
       - transaction-service
     networks:
       - app-network
@@ -115,6 +148,7 @@ services:
 volumes:
   user-db-data:
   product-db-data:
+  address-db-data:
   txn-db-data:
 
 networks:

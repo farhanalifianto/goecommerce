@@ -1,9 +1,10 @@
 package controller
 
 import (
-	"strconv"
-
+	"encoding/json"
 	"product-service/model"
+	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
@@ -31,16 +32,28 @@ func (pc *ProductController) Get(c *fiber.Ctx) error {
 }
 
 func (pc *ProductController) Create(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uint)
-	in := model.Product{}
+	var in model.Product
+
+	// Parse body ke struct Product
 	if err := c.BodyParser(&in); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
 	}
-	in.OwnerID = userID
+
+	// Validasi dasar (optional)
+	if in.Name == "" || len(in.Stock) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "name and stock are required"})
+	}
+
+	// Tambahkan created_at
+	in.CreatedAt = time.Now()
+
+	// Simpan ke DB
 	if err := pc.DB.Create(&in).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "create failed"})
 	}
-	return c.JSON(in)
+
+	// Return response JSON
+	return c.Status(201).JSON(in)
 }
 
 type UpdateProductRequest struct {
@@ -51,21 +64,30 @@ type UpdateProductRequest struct {
 
 func (pc *ProductController) Update(c *fiber.Ctx) error {
 	id, _ := strconv.Atoi(c.Params("id"))
-	var p model.Product
-	if err := pc.DB.First(&p, id).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "not found"})
+	var product model.Product
+	if err := pc.DB.First(&product, id).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "product not found"})
 	}
-	// if err := c.BodyParser(&p); err != nil {
-	// 	return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
-	// } bahaya bisa diubah idnya coi
-	var body UpdateProductRequest
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+
+	// Parsing input body ke struct baru
+	var input model.Product
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
 	}
-	if err := pc.DB.Save(&p).Error; err != nil {
+
+	// Update field-field yang diizinkan
+	product.Name = input.Name
+	product.Desc = input.Desc
+	product.Price = input.Price
+	product.Stock = input.Stock // ← ini sudah []StockItem / StockList
+
+	// Simpan ke DB
+	if err := pc.DB.Save(&product).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "update failed"})
 	}
-	return c.JSON(p)
+
+	// Return hasil update
+	return c.JSON(product)
 }
 
 func (pc *ProductController) Delete(c *fiber.Ctx) error {
@@ -80,36 +102,39 @@ func (pc *ProductController) Delete(c *fiber.Ctx) error {
 	return c.SendStatus(204)
 }
 
-func (pc *ProductController) DecrementStock(c *fiber.Ctx) error {
-	id := c.Params("id")
+func (pc *ProductController) ReduceStock(c *fiber.Ctx) error {
+	id, _ := strconv.Atoi(c.Params("id"))
+	var req struct {
+		Variant string `json:"variant"`
+		Qty     int    `json:"qty"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
+	}
 
-	var product model.Product
-	if err := pc.DB.First(&product, id).Error; err != nil {
+	var p model.Product
+	if err := pc.DB.First(&p, id).Error; err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "product not found"})
 	}
 
-	var body struct {
-		Qty int `json:"qty"`
+	stocks := p.Stock
+
+	found := false
+	for i := range stocks {
+		if stocks[i].Name == req.Variant {
+			if stocks[i].Qty < req.Qty {
+				return c.Status(400).JSON(fiber.Map{"error": "not enough stock"})
+			}
+			stocks[i].Qty -= req.Qty
+			found = true
+			break
+		}
 	}
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
+	if !found {
+		return c.Status(404).JSON(fiber.Map{"error": "variant not found"})
 	}
 
-	if body.Qty <= 0 {
-		return c.Status(400).JSON(fiber.Map{"error": "qty must be > 0"})
-	}
-
-	if product.Stock < body.Qty {
-		return c.Status(400).JSON(fiber.Map{"error": "not enough stock"})
-	}
-
-	product.Stock -= body.Qty
-	if err := pc.DB.Save(&product).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to update stock"})
-	}
-
-	return c.JSON(fiber.Map{
-		"message": "stock decremented",
-		"stock":   product.Stock,
-	})
+	updated, _ := json.Marshal(stocks)
+	pc.DB.Model(&p).Update("stock", updated)
+	return c.JSON(fiber.Map{"success": true})
 }

@@ -31,7 +31,7 @@ func main() {
 
 	routes.SetupTransactionRoutes(app, tc, userServiceURL)
 
-	port := getEnv("PORT", "3003")
+	port := getEnv("PORT", "3004")
 	log.Println("transaction-service running on port", port)
 	app.Listen(":" + port)
 }

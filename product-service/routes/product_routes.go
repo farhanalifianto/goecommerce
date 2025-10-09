@@ -18,5 +18,5 @@ func RegisterProductRoutes(app *fiber.App, db *gorm.DB, authMiddleware fiber.Han
 	p.Post("/", authMiddleware, pc.Create)
 	p.Put("/:id", authMiddleware, pc.Update)
 	p.Delete("/:id", authMiddleware, pc.Delete)
-	p.Post("/:id/decrement", pc.DecrementStock)
+	p.Post("/:id/reduce", pc.ReduceStock)
 }
