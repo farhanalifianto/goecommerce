@@ -3,10 +3,14 @@ port
 user-service = 3001
 product-service = 3002
 address-service = 3003
-transaction-service = 3004
+cart-service =  3004
+transaction-service = 3005
+
 
 db
+
 user-db = 5433
 product-db = 5434
 address-db = 5435
-transaction-db = 5436
+cart-db = 5436
+transaction-db = 5437

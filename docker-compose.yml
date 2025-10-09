@@ -42,6 +42,20 @@ services:
     networks:
       - app-network
 
+  cart-db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: cartdb
+    volumes:
+      - cart-db-data:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+    networks:
+      - app-network
+
   txn-db:
     image: postgres:15
     restart: always
@@ -52,7 +66,7 @@ services:
     volumes:
       - txn-db-data:/var/lib/postgresql/data
     ports:
-      - "5436:5432"
+      - "5437:5432"
     networks:
       - app-network
 
@@ -109,6 +123,22 @@ services:
     networks:
       - app-network
 
+  cart-service:
+    build: ./cart-service
+    container_name: cart-service
+    environment:
+      - DB_HOST=cart-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASS=postgres
+      - DB_NAME=cartdb
+    depends_on:
+      - cart-db
+    ports:
+      - "3004:3004"
+    networks:
+      - app-network
+
   transaction-service:
     build: ./transaction-service
     container_name: transaction-service
@@ -125,7 +155,7 @@ services:
       - user-service
       - product-service
     ports:
-      - "3004:3004"
+      - "3005:3005"
     networks:
       - app-network
 
@@ -141,6 +171,7 @@ services:
       - user-service
       - product-service
       - address-service
+      - cart-service
       - transaction-service
     networks:
       - app-network
@@ -149,6 +180,7 @@ volumes:
   user-db-data:
   product-db-data:
   address-db-data:
+  cart-db-data:
   txn-db-data:
 
 networks:
