@@ -4,7 +4,8 @@ user-service = 3001
 product-service = 3002
 address-service = 3003
 cart-service =  3004
-transaction-service = 3005
+wishlist-service = 3005
+transaction-service = 3006
 
 
 db
@@ -13,4 +14,5 @@ user-db = 5433
 product-db = 5434
 address-db = 5435
 cart-db = 5436
-transaction-db = 5437
+wishlist-db = 5437
+transaction-db = 5438

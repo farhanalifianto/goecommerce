@@ -56,6 +56,20 @@ services:
     networks:
       - app-network
 
+  wishlist-db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: wishlistdb
+    volumes:
+      - wishlist-db-data:/var/lib/postgresql/data
+    ports:
+      - "5437:5432"
+    networks:
+      - app-network
+
   txn-db:
     image: postgres:15
     restart: always
@@ -66,7 +80,7 @@ services:
     volumes:
       - txn-db-data:/var/lib/postgresql/data
     ports:
-      - "5437:5432"
+      - "5438:5432"
     networks:
       - app-network
 
@@ -139,6 +153,22 @@ services:
     networks:
       - app-network
 
+  wishlist-service:
+    build: ./wishlist-service
+    container_name: wishlist-service
+    environment:
+      - DB_HOST=wishlist-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASS=postgres
+      - DB_NAME=wishlistdb
+    depends_on:
+      - cart-db
+    ports:
+      - "3005:3005"
+    networks:
+      - app-network
+
   transaction-service:
     build: ./transaction-service
     container_name: transaction-service
@@ -154,8 +184,9 @@ services:
       - txn-db
       - user-service
       - product-service
+      - cart-service
     ports:
-      - "3005:3005"
+      - "3006:3006"
     networks:
       - app-network
 
@@ -172,6 +203,7 @@ services:
       - product-service
       - address-service
       - cart-service
+      - wishlist-service
       - transaction-service
     networks:
       - app-network
@@ -181,6 +213,7 @@ volumes:
   product-db-data:
   address-db-data:
   cart-db-data:
+  wishlist-db-data:
   txn-db-data:
 
 networks:
