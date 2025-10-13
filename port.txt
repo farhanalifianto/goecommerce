@@ -26,3 +26,4 @@ cart = model clear
 wishlist = model
 transaction = wait grpc
 
+protoc --go_out=. --go-grpc_out=. proto/address/address.proto

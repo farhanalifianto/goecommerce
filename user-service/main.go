@@ -3,18 +3,30 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"os"
 
+	"user-service/grpc_server"
 	"user-service/model"
+
+	pb "user-service/proto/user"
 	"user-service/routes"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 	"gorm.io/driver/postgres"
+
 	"gorm.io/gorm"
 )
 
 var DB *gorm.DB
+
+
+
+
+
 
 func initDB() {
 	host := getEnv("DB_HOST", "localhost")
@@ -34,16 +46,38 @@ func initDB() {
 	}
 }
 
+
+
 func main() {
 	initDB()
-	jwtSecret := getEnv("JWT_SECRET", "secret")
+    jwtSecret := getEnv("JWT_SECRET", "verysecretkey")
 
-	app := fiber.New()
-	app.Use(logger.New())
+    //fiber goroutines
+    go func() {
+        app := fiber.New()
+        app.Use(logger.New())
+        routes.RegisterUserRoutes(app, DB, jwtSecret)
 
-	routes.RegisterUserRoutes(app, DB, jwtSecret)
+        if err := app.Listen(":3001"); err != nil {
+            log.Fatalf("failed to start user-service: %v", err)
+        }
+		
+    }()
 
-	app.Listen(":3001")
+    // grpc main thread
+    lis, err := net.Listen("tcp", ":50051")
+    if err != nil {
+        log.Fatalf("failed to listen: %v", err)
+    }
+    grpcServer := grpc.NewServer()
+    pb.RegisterUserServiceServer(grpcServer, &grpc_server.UserGRPCServer{DB: DB})
+    log.Println("User gRPC running on :50051")
+	reflection.Register(grpcServer)
+
+    if err := grpcServer.Serve(lis); err != nil {
+        log.Fatalf("failed to serve gRPC: %v", err)
+    }
+
 }
 
 func getEnv(k, d string) string {
