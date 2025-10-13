@@ -42,7 +42,7 @@ func main() {
 	app.Use(logger.New())
 
 	// inject DB & middleware ke routes
-	routes.RegisterAddressRoutes(app, DB, middleware.AuthRequired)
+	routes.RegisterCartRoutes(app, DB, middleware.AuthRequired)
 
 	app.Listen(":3004")
 }

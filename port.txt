@@ -16,3 +16,13 @@ address-db = 5435
 cart-db = 5436
 wishlist-db = 5437
 transaction-db = 5438
+
+dev status
+
+product = wait grpc
+user = wait grpc
+address = wait grpc
+cart = model clear
+wishlist = model
+transaction = wait grpc
+

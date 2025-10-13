@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"product-service/model"
 	"strconv"
 	"time"
@@ -39,11 +38,6 @@ func (pc *ProductController) Create(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
 	}
 
-	// Validasi dasar (optional)
-	if in.Name == "" || len(in.Stock) == 0 {
-		return c.Status(400).JSON(fiber.Map{"error": "name and stock are required"})
-	}
-
 	// Tambahkan created_at
 	in.CreatedAt = time.Now()
 
@@ -79,7 +73,7 @@ func (pc *ProductController) Update(c *fiber.Ctx) error {
 	product.Name = input.Name
 	product.Desc = input.Desc
 	product.Price = input.Price
-	product.Stock = input.Stock // ← ini sudah []StockItem / StockList
+	product.Stock = input.Stock 
 
 	// Simpan ke DB
 	if err := pc.DB.Save(&product).Error; err != nil {
@@ -102,39 +96,3 @@ func (pc *ProductController) Delete(c *fiber.Ctx) error {
 	return c.SendStatus(204)
 }
 
-func (pc *ProductController) ReduceStock(c *fiber.Ctx) error {
-	id, _ := strconv.Atoi(c.Params("id"))
-	var req struct {
-		Variant string `json:"variant"`
-		Qty     int    `json:"qty"`
-	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
-	}
-
-	var p model.Product
-	if err := pc.DB.First(&p, id).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "product not found"})
-	}
-
-	stocks := p.Stock
-
-	found := false
-	for i := range stocks {
-		if stocks[i].Name == req.Variant {
-			if stocks[i].Qty < req.Qty {
-				return c.Status(400).JSON(fiber.Map{"error": "not enough stock"})
-			}
-			stocks[i].Qty -= req.Qty
-			found = true
-			break
-		}
-	}
-	if !found {
-		return c.Status(404).JSON(fiber.Map{"error": "variant not found"})
-	}
-
-	updated, _ := json.Marshal(stocks)
-	pc.DB.Model(&p).Update("stock", updated)
-	return c.JSON(fiber.Map{"success": true})
-}

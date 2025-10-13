@@ -13,9 +13,8 @@ func RegisterWishlistRoutes(app *fiber.App, db *gorm.DB, authMiddleware fiber.Ha
 	api := app.Group("/api")
 	w := api.Group("/wishlist")
 
-	w.Get("/", authMiddleware,wc.List)
-	w.Post("/", authMiddleware, wc.Create)
-	w.Get("/:id", authMiddleware,wc.Get)
-	w.Put("/:id", authMiddleware, wc.Update)
-	w.Delete("/:id", authMiddleware, wc.Delete)
+	w.Post("/", authMiddleware,wc.CreateOrUpdate)
+	w.Get("/", authMiddleware,wc.Get)
+	w.Delete("/:id", authMiddleware,wc.DeleteProduct)
+
 }

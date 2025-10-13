@@ -6,8 +6,7 @@ type Transaction struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	UserID    uint      `json:"user_id"`
 	AddressID uint 		`json:"address_id"`
-	ProductID uint      `json:"product_id"`
-	Qty       int       `json:"qty"`
+	CartID uint      `json:"cart_id"`
 	Amount    float64   `json:"amount"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
