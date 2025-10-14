@@ -121,6 +121,7 @@ services:
       - user-service
     ports:
       - "3003:3003"
+      - "50052:50052"
     networks:
       - app-network
 

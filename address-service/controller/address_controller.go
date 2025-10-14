@@ -1,30 +1,52 @@
 package controller
 
 import (
+	"address-service/grpc_client"
+	"address-service/model"
 	"strconv"
 	"time"
-
-	"address-service/model"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
 
 type AddressController struct {
-	DB *gorm.DB
+	DB         *gorm.DB
+	UserClient *grpc_client.UserClient
 }
 
+// GET /addresses
 func (ac *AddressController) List(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 
-	var addresses []model.Address
-	if err := ac.DB.Where("owner_id = ?", userID).Find(&addresses).Error; err != nil {
+	var address []model.Address
+	if err := ac.DB.Where("owner_id = ?", userID).Find(&address).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch addresses"})
+	}	
+
+	// Ambil email user sekali saja (efisien)
+	UserClient := grpc_client.NewUserClient()
+	userInfo, err := UserClient.GetUserEmail(userID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch user info"})
 	}
 
-	return c.JSON(addresses)
+	// Ubah owner_id jadi email di response
+	response := []map[string]interface{}{}
+	for _, addr := range address {
+		response = append(response, map[string]interface{}{
+			"id":         addr.ID,
+			"name":       addr.Name,
+			"desc":       addr.Desc,
+			"owner_id":   userInfo.Email, // ✅ ubah ke email
+			"created_at": addr.CreatedAt,
+		})
+	}
+
+	return c.JSON(response)
 }
 
+// GET /addresses/:id
 func (ac *AddressController) Get(c *fiber.Ctx) error {
 	id, err := strconv.Atoi(c.Params("id"))
 	if err != nil {
@@ -37,7 +59,20 @@ func (ac *AddressController) Get(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"error": "address not found"})
 	}
 
-	return c.JSON(address)
+	// Ambil email dari user-service via gRPC
+	userInfo, err := ac.UserClient.GetUserEmail(userID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch user info"})
+	}
+
+	// Response dengan owner_id = email
+	return c.JSON(fiber.Map{
+		"id":         address.ID,
+		"name":       address.Name,
+		"desc":       address.Desc,
+		"owner_id":   userInfo.Email, // ✅ email
+		"created_at": address.CreatedAt,
+	})
 }
 
 func (ac *AddressController) Create(c *fiber.Ctx) error {

@@ -7,7 +7,6 @@ cart-service =  3004
 wishlist-service = 3005
 transaction-service = 3006
 
-
 db
 
 user-db = 5433
@@ -26,4 +25,8 @@ cart = model clear
 wishlist = model
 transaction = wait grpc
 
+grpc port
+user = 50001
+
 protoc --go_out=. --go-grpc_out=. proto/address/address.proto
+protoc --go_out=. --go-grpc_out=. proto/user/user.proto
