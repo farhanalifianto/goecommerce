@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package cart;
+
+option go_package = "proto/cart";
+
+service CartService {
+  rpc CreateCart(CreateCartRequest) returns (CartResponse);
+  rpc GetCart(GetCartRequest) returns (CartResponse);
+  rpc DeleteProduct(DeleteProductRequest) returns (CartResponse);
+}
+
+message Product {
+  uint32 product_id = 1;
+  uint32 qty = 2;
+}
+
+message Cart {
+  uint32 id = 1;
+  uint32 owner_id = 2;
+  repeated Product products = 3;
+  string status = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}
+
+message CreateCartRequest {
+  uint32 owner_id = 1;
+  repeated Product products = 2;
+}
+
+message GetCartRequest {
+  uint32 owner_id = 1;
+}
+
+message DeleteProductRequest {
+  uint32 owner_id = 1;
+  uint32 product_id = 2;
+}
+
+message CartResponse {
+  Cart cart = 1;
+}
+
+message Empty {}
+

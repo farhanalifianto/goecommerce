@@ -1,183 +1,85 @@
 package controller
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"time"
+	"log"
 
-	"cart-service/model"
+	pb "cart-service/proto/cart"
 
 	"github.com/gofiber/fiber/v2"
-	"gorm.io/datatypes"
-	"gorm.io/gorm"
+	"google.golang.org/grpc"
 )
 
 type CartController struct {
-	DB *gorm.DB
+	Client pb.CartServiceClient
+}
+
+func NewCartController() *CartController {
+	conn, err := grpc.Dial("localhost:50052", grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("failed to connect to gRPC server: %v", err)
+	}
+	client := pb.NewCartServiceClient(conn)
+	return &CartController{Client: client}
 }
 
 func (cc *CartController) Create(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 
-	type ProductInput struct {
-		ProductID uint `json:"product_id"`
-		Qty       uint `json:"qty"`
+	var body struct {
+		Products []struct {
+			ProductID uint `json:"product_id"`
+			Qty       uint `json:"qty"`
+		} `json:"products"`
 	}
 
-	var input struct {
-		Products []ProductInput `json:"products"`
-	}
-
-	if err := c.BodyParser(&input); err != nil {
+	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
 	}
 
-	if len(input.Products) == 0 {
-		return c.Status(400).JSON(fiber.Map{"error": "products cannot be empty"})
+	req := &pb.CreateCartRequest{
+		OwnerId: uint32(userID),
 	}
 
-	var existing model.Cart
-	err := cc.DB.Where("owner_id = ? AND status = ?", userID, "unpaid").First(&existing).Error
-
-	// ✅ jika sudah ada cart unpaid
-	if err == nil {
-		var existingProducts []ProductInput
-		if err := json.Unmarshal(existing.Products, &existingProducts); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to decode existing products"})
-		}
-
-		// Gabungkan: update qty kalau ada, tambahkan kalau baru
-		for _, newProd := range input.Products {
-			found := false
-			for i, oldProd := range existingProducts {
-				if oldProd.ProductID == newProd.ProductID {
-					existingProducts[i].Qty += newProd.Qty // tambah qty
-					found = true
-					break
-				}
-			}
-			if !found {
-				existingProducts = append(existingProducts, newProd)
-			}
-		}
-
-		updatedJSON, _ := json.Marshal(existingProducts)
-		existing.Products = datatypes.JSON(updatedJSON)
-		existing.UpdatedAt = time.Now()
-
-		if err := cc.DB.Save(&existing).Error; err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "failed to update cart"})
-		}
-		return c.Status(200).JSON(existing)
+	for _, p := range body.Products {
+		req.Products = append(req.Products, &pb.Product{
+			ProductId: uint32(p.ProductID),
+			Qty:       uint32(p.Qty),
+		})
 	}
 
-	if err != gorm.ErrRecordNotFound {
-		return c.Status(500).JSON(fiber.Map{"error": "database error"})
+	resp, err := cc.Client.CreateCart(context.Background(), req)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// ✅ belum ada cart → buat baru
-	newProductsJSON, _ := json.Marshal(input.Products)
-	cart := model.Cart{
-		OwnerID:   userID,
-		Products:  datatypes.JSON(newProductsJSON),
-		Status:    "unpaid",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	if err := cc.DB.Create(&cart).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to create cart"})
-	}
-
-	return c.Status(201).JSON(cart)
+	return c.JSON(resp.Cart)
 }
+
 func (cc *CartController) GetCart(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
-
-	var cart model.Cart
-	err := cc.DB.Where("owner_id = ? AND status = ?", userID, "unpaid").First(&cart).Error
-
+	resp, err := cc.Client.GetCart(context.Background(), &pb.GetCartRequest{OwnerId: uint32(userID)})
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.Status(404).JSON(fiber.Map{"error": "no active cart found"})
-		}
-		return c.Status(500).JSON(fiber.Map{"error": "database error"})
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
-
-	// Decode JSONB products
-	var products []map[string]interface{}
-	if err := json.Unmarshal(cart.Products, &products); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to decode products"})
-	}
-
-	return c.JSON(fiber.Map{
-		"id":         cart.ID,
-		"owner_id":   cart.OwnerID,
-		"status":     cart.Status,
-		"products":   products,
-		"created_at": cart.CreatedAt,
-		"updated_at": cart.UpdatedAt,
-	})
+	return c.JSON(resp.Cart)
 }
 
 func (cc *CartController) DeleteCart(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
-	productIDParam := c.Params("id")
-
 	var productID uint
-	if _, err := fmt.Sscanf(productIDParam, "%d", &productID); err != nil {
+	if _, err := fmt.Sscanf(c.Params("id"), "%d", &productID); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid product id"})
 	}
 
-	// Cari cart unpaid milik user
-	var cart model.Cart
-	err := cc.DB.Where("owner_id = ? AND status = ?", userID, "unpaid").First(&cart).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.Status(404).JSON(fiber.Map{"error": "no active cart found"})
-		}
-		return c.Status(500).JSON(fiber.Map{"error": "database error"})
-	}
-
-	// Decode JSONB ke array
-	var products []struct {
-		ProductID uint `json:"product_id"`
-		Qty       uint `json:"qty"`
-	}
-	if err := json.Unmarshal(cart.Products, &products); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to decode products"})
-	}
-
-	// Filter produk yang bukan yang mau dihapus
-	newProducts := make([]struct {
-		ProductID uint `json:"product_id"`
-		Qty       uint `json:"qty"`
-	}, 0)
-
-	found := false
-	for _, p := range products {
-		if p.ProductID != productID {
-			newProducts = append(newProducts, p)
-		} else {
-			found = true
-		}
-	}
-
-	if !found {
-		return c.Status(404).JSON(fiber.Map{"error": "product not found in cart"})
-	}
-
-	// Encode ulang dan simpan
-	updatedJSON, _ := json.Marshal(newProducts)
-	cart.Products = datatypes.JSON(updatedJSON)
-	cart.UpdatedAt = time.Now()
-
-	if err := cc.DB.Save(&cart).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to update cart"})
-	}
-
-	return c.JSON(fiber.Map{
-		"message": "product removed from cart",
-		"cart":    cart,
+	resp, err := cc.Client.DeleteProduct(context.Background(), &pb.DeleteProductRequest{
+		OwnerId:   uint32(userID),
+		ProductId: uint32(productID),
 	})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(resp.Cart)
 }

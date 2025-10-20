@@ -35,7 +35,7 @@ protoc --go_out=. --go-grpc_out=. proto/user/user.proto
 progress project
 user-service = grpc
 product-service = 3002
-address-service = 3003
+address-service = grpc_done
 cart-service =  grpc
 wishlist-service = grpc
 transaction-service = wait for all

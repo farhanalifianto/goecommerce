@@ -1,17 +1,20 @@
 package main
 
 import (
+	"cart-service/grpc_server"
+	"cart-service/middleware"
+	"cart-service/model"
+	pb "cart-service/proto/cart"
+	"cart-service/routes"
 	"log"
+	"net"
 	"os"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"google.golang.org/grpc"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-
-	"cart-service/middleware"
-	"cart-service/model"
-	"cart-service/routes"
 )
 
 var DB *gorm.DB
@@ -23,28 +26,48 @@ func initDB() {
 	pass := getEnv("DB_PASS", "postgres")
 	name := getEnv("DB_NAME", "cartdb")
 
-	dsn := "host=" + host + " user=" + user + " password=" + pass + " dbname=" + name + " port=" + port + " sslmode=disable TimeZone=UTC"
+	dsn := "host=" + host + " user=" + user + " password=" + pass +
+		" dbname=" + name + " port=" + port + " sslmode=disable TimeZone=UTC"
 	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("failed to connect cart db:", err)
 	}
 
-	if err := DB.AutoMigrate(&model.Cart{}); err != nil {
-		log.Fatal(err)
-	}
+	DB.AutoMigrate(&model.Cart{})
 }
 
 func main() {
 	initDB()
 
-	app := fiber.New()
-	app.Use(logger.New())
+	go func() {
+		app := fiber.New()
+		app.Use(logger.New())
 
-	// inject DB & middleware ke routes
-	routes.RegisterCartRoutes(app, DB, middleware.AuthRequired)
+		routes.RegisterCartRoutes(app, middleware.AuthRequired)
 
-	app.Listen(":3004")
+		log.Println("🚀 HTTP server running on port 3004")
+		if err := app.Listen(":3004"); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	go func() {
+		lis, err := net.Listen("tcp", ":50052")
+		if err != nil {
+			log.Fatal(err)
+		}
+		s := grpc.NewServer()
+		cartServer := &grpc_server.CartServer{DB: DB}
+		pb.RegisterCartServiceServer(s, cartServer)
+
+		log.Println("🛰️ gRPC server running on port 50052")
+		if err := s.Serve(lis); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	select {}
 }
 
 func getEnv(k, d string) string {
