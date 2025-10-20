@@ -41,23 +41,21 @@ func initDB() {
 func main() {
 	initDB()
 
-	// Jalankan Fiber HTTP di goroutine
 	go func() {
 		app := fiber.New()
 		app.Use(logger.New())
 
-		// Inject DB & middleware ke routes
 		routes.RegisterAddressRoutes(app, DB, middleware.AuthRequired)
 
-		log.Println("🚀 HTTP server running on port 3003")
+		log.Println("HTTP server running on port 3003")
 		if err := app.Listen(":3003"); err != nil {
 			log.Fatal("fiber error:", err)
 		}
 	}()
 
-	// Jalankan gRPC server di port berbeda
+	
 	go func() {
-		listener, err := net.Listen("tcp", ":50052") // contoh port gRPC
+		listener, err := net.Listen("tcp", ":50052") 
 		if err != nil {
 			log.Fatalf("failed to listen on port 50052: %v", err)
 		}
@@ -72,7 +70,6 @@ func main() {
 		}
 	}()
 
-	// block forever (biar main ga keluar)
 	select {}
 }
 

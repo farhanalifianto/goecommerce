@@ -1,100 +1,76 @@
 package controller
 
 import (
-	"address-service/grpc_client"
-	"address-service/model"
+	pb "address-service/proto/address"
+	"context"
 	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"gorm.io/gorm"
+	"google.golang.org/grpc"
 )
 
 type AddressController struct {
-	DB         *gorm.DB
-	UserClient *grpc_client.UserClient
+	Client pb.AddressServiceClient
 }
 
-// GET /addresses
 func (ac *AddressController) List(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 
-	var address []model.Address
-	if err := ac.DB.Where("owner_id = ?", userID).Find(&address).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch addresses"})
-	}	
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	// Ambil email user sekali saja (efisien)
-	UserClient := grpc_client.NewUserClient()
-	userInfo, err := UserClient.GetUserEmail(userID)
+	resp, err := ac.Client.ListAddresses(ctx, &pb.ListAddressRequest{
+		OwnerId: uint32(userID),
+	})
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch user info"})
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Ubah owner_id jadi email di response
-	response := []map[string]interface{}{}
-	for _, addr := range address {
-		response = append(response, map[string]interface{}{
-			"id":         addr.ID,
-			"name":       addr.Name,
-			"desc":       addr.Desc,
-			"owner_id":   userInfo.Email, // ✅ ubah ke email
-			"created_at": addr.CreatedAt,
-		})
-	}
-
-	return c.JSON(response)
+	return c.JSON(resp.Addresses)
 }
 
-// GET /addresses/:id
 func (ac *AddressController) Get(c *fiber.Ctx) error {
 	id, err := strconv.Atoi(c.Params("id"))
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid id"})
 	}
-	userID := c.Locals("user_id").(uint)
 
-	var address model.Address
-	if err := ac.DB.Where("id = ? AND owner_id = ?", id, userID).First(&address).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "address not found"})
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	// Ambil email dari user-service via gRPC
-	userInfo, err := ac.UserClient.GetUserEmail(userID)
+	resp, err := ac.Client.GetAddress(ctx, &pb.GetAddressRequest{Id: uint32(id)})
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch user info"})
+		return c.Status(404).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Response dengan owner_id = email
-	return c.JSON(fiber.Map{
-		"id":         address.ID,
-		"name":       address.Name,
-		"desc":       address.Desc,
-		"owner_id":   userInfo.Email, // ✅ email
-		"created_at": address.CreatedAt,
-	})
+	return c.JSON(resp.Address)
 }
 
 func (ac *AddressController) Create(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
 
-	var in model.Address
-	if err := c.BodyParser(&in); err != nil {
+	var body struct {
+		Name string `json:"name"`
+		Desc string `json:"desc"`
+	}
+	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
 	}
 
-	if in.Name == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "name is required"})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := ac.Client.CreateAddress(ctx, &pb.CreateAddressRequest{
+		Name:     body.Name,
+		Desc:     body.Desc,
+		OwnerId:  uint32(userID),
+	})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	in.OwnerID = userID
-	in.CreatedAt = time.Now()
-
-	if err := ac.DB.Create(&in).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to create address"})
-	}
-
-	return c.Status(201).JSON(in)
+	return c.Status(201).JSON(resp.Address)
 }
 
 func (ac *AddressController) Update(c *fiber.Ctx) error {
@@ -102,44 +78,53 @@ func (ac *AddressController) Update(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid id"})
 	}
-	userID := c.Locals("user_id").(uint)
 
-	var address model.Address
-	if err := ac.DB.Where("id = ? AND owner_id = ?", id, userID).First(&address).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "address not found"})
+	var body struct {
+		Name string `json:"name"`
+		Desc string `json:"desc"`
 	}
-
-	var input model.Address
-	if err := c.BodyParser(&input); err != nil {
+	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
 	}
 
-	address.Name = input.Name
-	address.Desc = input.Desc
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	if err := ac.DB.Save(&address).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to update address"})
+	resp, err := ac.Client.UpdateAddress(ctx, &pb.UpdateAddressRequest{
+		Id:   uint32(id),
+		Name: body.Name,
+		Desc: body.Desc,
+	})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.JSON(address)
+	return c.JSON(resp.Address)
 }
 
-// Delete address (hanya jika milik user)
 func (ac *AddressController) Delete(c *fiber.Ctx) error {
 	id, err := strconv.Atoi(c.Params("id"))
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid id"})
 	}
-	userID := c.Locals("user_id").(uint)
 
-	var address model.Address
-	if err := ac.DB.Where("id = ? AND owner_id = ?", id, userID).First(&address).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": "address not found"})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := ac.Client.DeleteAddress(ctx, &pb.DeleteAddressRequest{Id: uint32(id)})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	if err := ac.DB.Delete(&address).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to delete address"})
+	return c.JSON(resp)
+}
+
+func NewAddressController() *AddressController {
+	conn, err := grpc.Dial("localhost:50052", grpc.WithInsecure())
+	if err != nil {
+		panic("failed to connect to address gRPC: " + err.Error())
 	}
 
-	return c.SendStatus(204)
+	client := pb.NewAddressServiceClient(conn)
+	return &AddressController{Client: client}
 }

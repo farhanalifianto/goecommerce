@@ -8,14 +8,14 @@ import (
 )
 
 func RegisterAddressRoutes(app *fiber.App, db *gorm.DB, authMiddleware fiber.Handler) {
-	ad := &controller.AddressController{DB: db}
+	ac := controller.NewAddressController() // sekarang lewat gRPC client
 
 	api := app.Group("/api")
 	a := api.Group("/address")
 
-	a.Get("/", authMiddleware,ad.List)
-	a.Post("/", authMiddleware, ad.Create)
-	a.Get("/:id", authMiddleware,ad.Get)
-	a.Put("/:id", authMiddleware, ad.Update)
-	a.Delete("/:id", authMiddleware, ad.Delete)
+	a.Get("/", authMiddleware, ac.List)
+	a.Post("/", authMiddleware, ac.Create)
+	a.Get("/:id", authMiddleware, ac.Get)
+	a.Put("/:id", authMiddleware, ac.Update)
+	a.Delete("/:id", authMiddleware, ac.Delete)
 }
