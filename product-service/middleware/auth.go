@@ -47,6 +47,23 @@ func AuthRequired(c *fiber.Ctx) error {
 	return c.Next()
 }
 
+func RoleRequired(roles ...string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userRole := c.Locals("user_role")
+		if userRole == nil {
+			return c.Status(403).JSON(fiber.Map{"error": "no role"})
+		}
+
+		role := userRole.(string)
+		for _, r := range roles {
+			if role == r {
+				return c.Next()
+			}
+		}
+		return c.Status(403).JSON(fiber.Map{"error": "forbidden"})
+	}
+}
+
 func getEnv(k, d string) string {
 	if v := os.Getenv(k); v != "" {
 		return v
