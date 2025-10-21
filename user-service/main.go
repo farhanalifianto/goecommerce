@@ -50,7 +50,7 @@ func initDB() {
 
 func main() {
 	initDB()
-    jwtSecret := getEnv("JWT_SECRET", "verysecretkey")
+   jwtSecret := getEnv("JWT_SECRET", "verysecretkey")
 
     //fiber goroutines
     go func() {

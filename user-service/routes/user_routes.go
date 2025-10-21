@@ -8,13 +8,14 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterUserRoutes(app *fiber.App, db *gorm.DB, jwtSecret string) {
-	uc := &controller.UserController{DB: db, JWTSecret: jwtSecret}
+func RegisterUserRoutes(app *fiber.App, db *gorm.DB,jwtSecret string ) {
+	uc := &controller.UserController{DB: db,JWTSecret: jwtSecret }
 
 	api := app.Group("/api")
 	u := api.Group("/users")
 
 	u.Post("/register", uc.Register)
 	u.Post("/login", uc.Login)
+	u.Get("/users", middleware.AuthRequired(jwtSecret),middleware.RoleRequired("admin"), uc.GetUsers)
 	u.Get("/me", middleware.AuthRequired(jwtSecret), uc.Me)
 }

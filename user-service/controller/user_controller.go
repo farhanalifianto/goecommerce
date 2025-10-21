@@ -32,7 +32,7 @@ func (uc *UserController) Register(c *fiber.Ctx) error {
 	}
 
 	hashed, _ := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
-	user := model.User{Email: in.Email, Password: string(hashed), Name: in.Name, Role: "user"}
+	user := model.User{Email: in.Email, Password: string(hashed), Name: in.Name, Role: in.Role}
 	if err := uc.DB.Create(&user).Error; err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "email already used"})
 	}
@@ -78,4 +78,16 @@ func (uc *UserController) Me(c *fiber.Ctx) error {
 		"role":  user.Role,
 	})
 }
+func (uc *UserController) GetUsers(c *fiber.Ctx) error {
+	role := c.Locals("user_role").(string)
+	if role != "admin" {
+		return c.Status(403).JSON(fiber.Map{"error": "forbidden"})
+	}
 
+	var users []model.User
+	if err := uc.DB.Select("id", "email", "name", "role").Find(&users).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch users"})
+	}
+
+	return c.JSON(users)
+}
