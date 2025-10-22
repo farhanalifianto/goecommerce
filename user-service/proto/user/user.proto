@@ -29,7 +29,7 @@ message GetUserRequest {
 }
 
 message GetMeRequest {
-  uint32 id = 1;
+  string token = 1;
 }
 
 message UserResponse {

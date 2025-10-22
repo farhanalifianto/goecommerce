@@ -187,7 +187,7 @@ func (x *GetUserRequest) GetId() uint32 {
 
 type GetMeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            uint32                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -222,11 +222,11 @@ func (*GetMeRequest) Descriptor() ([]byte, []int) {
 	return file_proto_user_user_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *GetMeRequest) GetId() uint32 {
+func (x *GetMeRequest) GetToken() string {
 	if x != nil {
-		return x.Id
+		return x.Token
 	}
-	return 0
+	return ""
 }
 
 type UserResponse struct {
@@ -435,9 +435,9 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\" \n" +
 	"\x0eGetUserRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\rR\x02id\"\x1e\n" +
-	"\fGetMeRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\rR\x02id\"\\\n" +
+	"\x02id\x18\x01 \x01(\rR\x02id\"$\n" +
+	"\fGetMeRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"\\\n" +
 	"\fUserResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x12\n" +

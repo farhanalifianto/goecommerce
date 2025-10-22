@@ -41,9 +41,13 @@ func (uc *UserController) Login(c *fiber.Ctx) error {
 }
 
 func (uc *UserController) Me(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uint)
+	authHeader := c.Get("Authorization")
+	if authHeader == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "missing token"})
+	}
 
-	res, err := uc.Client.GetMe(context.Background(), &pb.GetMeRequest{Id: uint32(userID)})
+	token := authHeader[len("Bearer "):]
+	res, err := uc.Client.GetMe(context.Background(), &pb.GetMeRequest{Token: token})
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
