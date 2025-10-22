@@ -109,7 +109,7 @@ func (x *GetMeRequest) GetToken() string {
 	return ""
 }
 
-type GetUserResponse struct {
+type UserResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            uint32                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
@@ -119,20 +119,20 @@ type GetUserResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetUserResponse) Reset() {
-	*x = GetUserResponse{}
+func (x *UserResponse) Reset() {
+	*x = UserResponse{}
 	mi := &file_proto_user_user_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetUserResponse) String() string {
+func (x *UserResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetUserResponse) ProtoMessage() {}
+func (*UserResponse) ProtoMessage() {}
 
-func (x *GetUserResponse) ProtoReflect() protoreflect.Message {
+func (x *UserResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_user_user_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -144,33 +144,33 @@ func (x *GetUserResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetUserResponse.ProtoReflect.Descriptor instead.
-func (*GetUserResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use UserResponse.ProtoReflect.Descriptor instead.
+func (*UserResponse) Descriptor() ([]byte, []int) {
 	return file_proto_user_user_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *GetUserResponse) GetId() uint32 {
+func (x *UserResponse) GetId() uint32 {
 	if x != nil {
 		return x.Id
 	}
 	return 0
 }
 
-func (x *GetUserResponse) GetEmail() string {
+func (x *UserResponse) GetEmail() string {
 	if x != nil {
 		return x.Email
 	}
 	return ""
 }
 
-func (x *GetUserResponse) GetName() string {
+func (x *UserResponse) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *GetUserResponse) GetRole() string {
+func (x *UserResponse) GetRole() string {
 	if x != nil {
 		return x.Role
 	}
@@ -185,15 +185,15 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\x0eGetUserRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\"$\n" +
 	"\fGetMeRequest\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\"_\n" +
-	"\x0fGetUserResponse\x12\x0e\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"\\\n" +
+	"\fUserResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x12\n" +
-	"\x04role\x18\x04 \x01(\tR\x04role2}\n" +
-	"\vUserService\x12:\n" +
-	"\vGetUserByID\x12\x14.user.GetUserRequest\x1a\x15.user.GetUserResponse\x122\n" +
-	"\x05GetMe\x12\x12.user.GetMeRequest\x1a\x15.user.GetUserResponseB\rZ\vproto/user/b\x06proto3"
+	"\x04role\x18\x04 \x01(\tR\x04role2w\n" +
+	"\vUserService\x127\n" +
+	"\vGetUserByID\x12\x14.user.GetUserRequest\x1a\x12.user.UserResponse\x12/\n" +
+	"\x05GetMe\x12\x12.user.GetMeRequest\x1a\x12.user.UserResponseB\rZ\vproto/user/b\x06proto3"
 
 var (
 	file_proto_user_user_proto_rawDescOnce sync.Once
@@ -209,15 +209,15 @@ func file_proto_user_user_proto_rawDescGZIP() []byte {
 
 var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_proto_user_user_proto_goTypes = []any{
-	(*GetUserRequest)(nil),  // 0: user.GetUserRequest
-	(*GetMeRequest)(nil),    // 1: user.GetMeRequest
-	(*GetUserResponse)(nil), // 2: user.GetUserResponse
+	(*GetUserRequest)(nil), // 0: user.GetUserRequest
+	(*GetMeRequest)(nil),   // 1: user.GetMeRequest
+	(*UserResponse)(nil),   // 2: user.UserResponse
 }
 var file_proto_user_user_proto_depIdxs = []int32{
 	0, // 0: user.UserService.GetUserByID:input_type -> user.GetUserRequest
 	1, // 1: user.UserService.GetMe:input_type -> user.GetMeRequest
-	2, // 2: user.UserService.GetUserByID:output_type -> user.GetUserResponse
-	2, // 3: user.UserService.GetMe:output_type -> user.GetUserResponse
+	2, // 2: user.UserService.GetUserByID:output_type -> user.UserResponse
+	2, // 3: user.UserService.GetMe:output_type -> user.UserResponse
 	2, // [2:4] is the sub-list for method output_type
 	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

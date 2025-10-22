@@ -5,8 +5,23 @@ package user;
 option go_package = "proto/user/";
 
 service UserService {
-  rpc GetUserByID (GetUserRequest) returns (GetUserResponse);
-  rpc GetMe (GetMeRequest) returns (GetUserResponse);
+  rpc Register (RegisterRequest) returns (UserResponse);
+  rpc Login (LoginRequest) returns (LoginResponse);
+  rpc GetUserByID (GetUserRequest) returns (UserResponse);
+  rpc GetMe (GetMeRequest) returns (UserResponse);
+  rpc GetUsers (Empty) returns (UsersResponse);
+}
+
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string name = 3;
+  string role = 4;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
 }
 
 message GetUserRequest {
@@ -14,12 +29,22 @@ message GetUserRequest {
 }
 
 message GetMeRequest {
-  string token = 1;
+  uint32 id = 1;
 }
 
-message GetUserResponse {
+message UserResponse {
   uint32 id = 1;
   string email = 2;
   string name = 3;
   string role = 4;
 }
+
+message LoginResponse {
+  string access_token = 1;
+}
+
+message UsersResponse {
+  repeated UserResponse users = 1;
+}
+
+message Empty {}

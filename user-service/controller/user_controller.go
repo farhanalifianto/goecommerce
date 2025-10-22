@@ -1,93 +1,70 @@
 package controller
 
 import (
-	"time"
-
-	"user-service/model"
+	"context"
+	pb "user-service/proto/user"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
+	"google.golang.org/grpc"
 )
 
 type UserController struct {
-	DB        *gorm.DB
-	JWTSecret string
+	Client pb.UserServiceClient
 }
 
-func (uc *UserController) Register(c *fiber.Ctx) error {
-	in := struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		Name     string `json:"name"`
-		Role	 string `json:"role"`
 
-	}{}
-	if err := c.BodyParser(&in); err != nil {
+
+func (uc *UserController) Register(c *fiber.Ctx) error {
+	var req pb.RegisterRequest
+	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
 	}
-	if in.Email == "" || in.Password == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "email and password required"})
-	}
 
-	hashed, _ := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
-	user := model.User{Email: in.Email, Password: string(hashed), Name: in.Name, Role: in.Role}
-	if err := uc.DB.Create(&user).Error; err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "email already used"})
+	res, err := uc.Client.Register(context.Background(), &req)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
-	return c.JSON(fiber.Map{"id": user.ID, "email": user.Email, "name": user.Name})
+	return c.JSON(res)
 }
 
 func (uc *UserController) Login(c *fiber.Ctx) error {
-	in := struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}{}
-	if err := c.BodyParser(&in); err != nil {
+	var req pb.LoginRequest
+	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
 	}
-	var user model.User
-	if err := uc.DB.Where("email = ?", in.Email).First(&user).Error; err != nil {
-		return c.Status(401).JSON(fiber.Map{"error": "invalid credentials"})
-	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(in.Password)); err != nil {
-		return c.Status(401).JSON(fiber.Map{"error": "invalid credentials"})
-	}
 
-	claims := jwt.MapClaims{
-		"sub":   user.ID,
-		"email": user.Email,
-		"role":  user.Role,
-		"exp":   time.Now().Add(time.Hour * 72).Unix(),
+	res, err := uc.Client.Login(context.Background(), &req)
+	if err != nil {
+		return c.Status(401).JSON(fiber.Map{"error": err.Error()})
 	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, _ := token.SignedString([]byte(uc.JWTSecret))
-
-	return c.JSON(fiber.Map{"access_token": signed})
+	return c.JSON(res)
 }
 
 func (uc *UserController) Me(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uint)
-	var user model.User
-	uc.DB.First(&user, userID)
-	return c.JSON(fiber.Map{
-		"id":    user.ID,
-		"email": user.Email,
-		"name":  user.Name,
-		"role":  user.Role,
-	})
+
+	res, err := uc.Client.GetMe(context.Background(), &pb.GetMeRequest{Id: uint32(userID)})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(res)
 }
+
 func (uc *UserController) GetUsers(c *fiber.Ctx) error {
-	role := c.Locals("user_role").(string)
-	if role != "admin" {
-		return c.Status(403).JSON(fiber.Map{"error": "forbidden"})
+	res, err := uc.Client.GetUsers(context.Background(), &pb.Empty{})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	var users []model.User
-	if err := uc.DB.Select("id", "email", "name", "role").Find(&users).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to fetch users"})
-	}
+	return c.JSON(res.Users)
+}
 
-	return c.JSON(users)
+func NewUserController() *UserController {
+	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure()) // port gRPC user
+	if err != nil {
+		panic("failed to connect to user gRPC: " + err.Error())
+	}
+	client := pb.NewUserServiceClient(conn)
+	return &UserController{Client: client}
 }
