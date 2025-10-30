@@ -6,6 +6,9 @@ import (
 	"context"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"gorm.io/gorm"
 )
 
@@ -29,13 +32,25 @@ func (s *AddressServer) CreateAddress(ctx context.Context, req *pb.CreateAddress
 	return &pb.AddressResponse{Address: toProto(address)}, nil
 }
 
-func (s *AddressServer) GetAddress(ctx context.Context, req *pb.GetAddressRequest) (*pb.AddressResponse, error) {
+func (s *AddressServer) GetAddress(ctx context.Context, in *pb.GetAddressRequest) (*pb.AddressResponse, error) {
 	var address model.Address
-	if err := s.DB.First(&address, req.Id).Error; err != nil {
-		return nil, err
+	if err := s.DB.First(&address, in.Id).Error; err != nil {
+		return nil, status.Errorf(codes.NotFound, "address not found")
 	}
 
-	return &pb.AddressResponse{Address: toProto(address)}, nil
+	// ✅ Validasi: hanya owner yang boleh ambil data
+	if address.OwnerID != uint(in.OwnerId) {
+		return nil, status.Errorf(codes.PermissionDenied, "unauthorized: not your address")
+	}
+
+	return &pb.AddressResponse{
+		Address: &pb.Address{
+			Id:        uint32(address.ID),
+			Name:      address.Name,
+			Desc:      address.Desc,
+			OwnerId:   uint32(address.OwnerID),
+		},
+	}, nil
 }
 
 func (s *AddressServer) ListAddresses(ctx context.Context, req *pb.ListAddressRequest) (*pb.ListAddressResponse, error) {
@@ -75,6 +90,28 @@ func (s *AddressServer) DeleteAddress(ctx context.Context, req *pb.DeleteAddress
 
 	return &pb.DeleteAddressResponse{Message: "Address deleted successfully"}, nil
 }
+
+func (s *AddressServer) GetAllAddresses(ctx context.Context, _ *emptypb.Empty) (*pb.GetAllAddressesResponse, error) {
+    var addresses []model.Address
+
+    if err := s.DB.Find(&addresses).Error; err != nil {
+        return nil, err
+    }
+
+    var pbAddresses []*pb.Address
+    for _, a := range addresses {
+        pbAddresses = append(pbAddresses, &pb.Address{
+            Id:      uint32(a.ID),
+            Name:    a.Name,
+            Desc:    a.Desc,
+            OwnerId: uint32(a.OwnerID),
+        })
+    }
+
+    return &pb.GetAllAddressesResponse{Addresses: pbAddresses}, nil
+}
+
+
 
 func toProto(a model.Address) *pb.Address {
 	return &pb.Address{

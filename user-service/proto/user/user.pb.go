@@ -421,6 +421,110 @@ func (*Empty) Descriptor() ([]byte, []int) {
 	return file_proto_user_user_proto_rawDescGZIP(), []int{7}
 }
 
+type ValidateTokenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateTokenRequest) Reset() {
+	*x = ValidateTokenRequest{}
+	mi := &file_proto_user_user_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateTokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateTokenRequest) ProtoMessage() {}
+
+func (x *ValidateTokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateTokenRequest.ProtoReflect.Descriptor instead.
+func (*ValidateTokenRequest) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ValidateTokenRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+type ValidateTokenResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            uint32                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	Role          string                 `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateTokenResponse) Reset() {
+	*x = ValidateTokenResponse{}
+	mi := &file_proto_user_user_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateTokenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateTokenResponse) ProtoMessage() {}
+
+func (x *ValidateTokenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_user_user_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateTokenResponse.ProtoReflect.Descriptor instead.
+func (*ValidateTokenResponse) Descriptor() ([]byte, []int) {
+	return file_proto_user_user_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ValidateTokenResponse) GetId() uint32 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *ValidateTokenResponse) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *ValidateTokenResponse) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
 var File_proto_user_user_proto protoreflect.FileDescriptor
 
 const file_proto_user_user_proto_rawDesc = "" +
@@ -447,13 +551,20 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\"9\n" +
 	"\rUsersResponse\x12(\n" +
 	"\x05users\x18\x01 \x03(\v2\x12.user.UserResponseR\x05users\"\a\n" +
-	"\x05Empty2\x8e\x02\n" +
+	"\x05Empty\",\n" +
+	"\x14ValidateTokenRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"Q\n" +
+	"\x15ValidateTokenResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\rR\x02id\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12\x12\n" +
+	"\x04role\x18\x03 \x01(\tR\x04role2\xd8\x02\n" +
 	"\vUserService\x125\n" +
 	"\bRegister\x12\x15.user.RegisterRequest\x1a\x12.user.UserResponse\x120\n" +
 	"\x05Login\x12\x12.user.LoginRequest\x1a\x13.user.LoginResponse\x127\n" +
-	"\vGetUserByID\x12\x14.user.GetUserRequest\x1a\x12.user.UserResponse\x12/\n" +
+	"\vGetUserInfo\x12\x14.user.GetUserRequest\x1a\x12.user.UserResponse\x12/\n" +
 	"\x05GetMe\x12\x12.user.GetMeRequest\x1a\x12.user.UserResponse\x12,\n" +
-	"\bGetUsers\x12\v.user.Empty\x1a\x13.user.UsersResponseB\rZ\vproto/user/b\x06proto3"
+	"\bGetUsers\x12\v.user.Empty\x1a\x13.user.UsersResponse\x12H\n" +
+	"\rValidateToken\x12\x1a.user.ValidateTokenRequest\x1a\x1b.user.ValidateTokenResponseB\rZ\vproto/user/b\x06proto3"
 
 var (
 	file_proto_user_user_proto_rawDescOnce sync.Once
@@ -467,31 +578,35 @@ func file_proto_user_user_proto_rawDescGZIP() []byte {
 	return file_proto_user_user_proto_rawDescData
 }
 
-var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_proto_user_user_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_proto_user_user_proto_goTypes = []any{
-	(*RegisterRequest)(nil), // 0: user.RegisterRequest
-	(*LoginRequest)(nil),    // 1: user.LoginRequest
-	(*GetUserRequest)(nil),  // 2: user.GetUserRequest
-	(*GetMeRequest)(nil),    // 3: user.GetMeRequest
-	(*UserResponse)(nil),    // 4: user.UserResponse
-	(*LoginResponse)(nil),   // 5: user.LoginResponse
-	(*UsersResponse)(nil),   // 6: user.UsersResponse
-	(*Empty)(nil),           // 7: user.Empty
+	(*RegisterRequest)(nil),       // 0: user.RegisterRequest
+	(*LoginRequest)(nil),          // 1: user.LoginRequest
+	(*GetUserRequest)(nil),        // 2: user.GetUserRequest
+	(*GetMeRequest)(nil),          // 3: user.GetMeRequest
+	(*UserResponse)(nil),          // 4: user.UserResponse
+	(*LoginResponse)(nil),         // 5: user.LoginResponse
+	(*UsersResponse)(nil),         // 6: user.UsersResponse
+	(*Empty)(nil),                 // 7: user.Empty
+	(*ValidateTokenRequest)(nil),  // 8: user.ValidateTokenRequest
+	(*ValidateTokenResponse)(nil), // 9: user.ValidateTokenResponse
 }
 var file_proto_user_user_proto_depIdxs = []int32{
 	4, // 0: user.UsersResponse.users:type_name -> user.UserResponse
 	0, // 1: user.UserService.Register:input_type -> user.RegisterRequest
 	1, // 2: user.UserService.Login:input_type -> user.LoginRequest
-	2, // 3: user.UserService.GetUserByID:input_type -> user.GetUserRequest
+	2, // 3: user.UserService.GetUserInfo:input_type -> user.GetUserRequest
 	3, // 4: user.UserService.GetMe:input_type -> user.GetMeRequest
 	7, // 5: user.UserService.GetUsers:input_type -> user.Empty
-	4, // 6: user.UserService.Register:output_type -> user.UserResponse
-	5, // 7: user.UserService.Login:output_type -> user.LoginResponse
-	4, // 8: user.UserService.GetUserByID:output_type -> user.UserResponse
-	4, // 9: user.UserService.GetMe:output_type -> user.UserResponse
-	6, // 10: user.UserService.GetUsers:output_type -> user.UsersResponse
-	6, // [6:11] is the sub-list for method output_type
-	1, // [1:6] is the sub-list for method input_type
+	8, // 6: user.UserService.ValidateToken:input_type -> user.ValidateTokenRequest
+	4, // 7: user.UserService.Register:output_type -> user.UserResponse
+	5, // 8: user.UserService.Login:output_type -> user.LoginResponse
+	4, // 9: user.UserService.GetUserInfo:output_type -> user.UserResponse
+	4, // 10: user.UserService.GetMe:output_type -> user.UserResponse
+	6, // 11: user.UserService.GetUsers:output_type -> user.UsersResponse
+	9, // 12: user.UserService.ValidateToken:output_type -> user.ValidateTokenResponse
+	7, // [7:13] is the sub-list for method output_type
+	1, // [1:7] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -508,7 +623,7 @@ func file_proto_user_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_user_user_proto_rawDesc), len(file_proto_user_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

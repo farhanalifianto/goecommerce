@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -19,11 +20,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AddressService_CreateAddress_FullMethodName = "/address.AddressService/CreateAddress"
-	AddressService_GetAddress_FullMethodName    = "/address.AddressService/GetAddress"
-	AddressService_ListAddresses_FullMethodName = "/address.AddressService/ListAddresses"
-	AddressService_UpdateAddress_FullMethodName = "/address.AddressService/UpdateAddress"
-	AddressService_DeleteAddress_FullMethodName = "/address.AddressService/DeleteAddress"
+	AddressService_CreateAddress_FullMethodName   = "/address.AddressService/CreateAddress"
+	AddressService_GetAddress_FullMethodName      = "/address.AddressService/GetAddress"
+	AddressService_ListAddresses_FullMethodName   = "/address.AddressService/ListAddresses"
+	AddressService_UpdateAddress_FullMethodName   = "/address.AddressService/UpdateAddress"
+	AddressService_DeleteAddress_FullMethodName   = "/address.AddressService/DeleteAddress"
+	AddressService_GetAllAddresses_FullMethodName = "/address.AddressService/GetAllAddresses"
 )
 
 // AddressServiceClient is the client API for AddressService service.
@@ -35,6 +37,7 @@ type AddressServiceClient interface {
 	ListAddresses(ctx context.Context, in *ListAddressRequest, opts ...grpc.CallOption) (*ListAddressResponse, error)
 	UpdateAddress(ctx context.Context, in *UpdateAddressRequest, opts ...grpc.CallOption) (*AddressResponse, error)
 	DeleteAddress(ctx context.Context, in *DeleteAddressRequest, opts ...grpc.CallOption) (*DeleteAddressResponse, error)
+	GetAllAddresses(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetAllAddressesResponse, error)
 }
 
 type addressServiceClient struct {
@@ -95,6 +98,16 @@ func (c *addressServiceClient) DeleteAddress(ctx context.Context, in *DeleteAddr
 	return out, nil
 }
 
+func (c *addressServiceClient) GetAllAddresses(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetAllAddressesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAllAddressesResponse)
+	err := c.cc.Invoke(ctx, AddressService_GetAllAddresses_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AddressServiceServer is the server API for AddressService service.
 // All implementations must embed UnimplementedAddressServiceServer
 // for forward compatibility.
@@ -104,6 +117,7 @@ type AddressServiceServer interface {
 	ListAddresses(context.Context, *ListAddressRequest) (*ListAddressResponse, error)
 	UpdateAddress(context.Context, *UpdateAddressRequest) (*AddressResponse, error)
 	DeleteAddress(context.Context, *DeleteAddressRequest) (*DeleteAddressResponse, error)
+	GetAllAddresses(context.Context, *emptypb.Empty) (*GetAllAddressesResponse, error)
 	mustEmbedUnimplementedAddressServiceServer()
 }
 
@@ -128,6 +142,9 @@ func (UnimplementedAddressServiceServer) UpdateAddress(context.Context, *UpdateA
 }
 func (UnimplementedAddressServiceServer) DeleteAddress(context.Context, *DeleteAddressRequest) (*DeleteAddressResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAddress not implemented")
+}
+func (UnimplementedAddressServiceServer) GetAllAddresses(context.Context, *emptypb.Empty) (*GetAllAddressesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAllAddresses not implemented")
 }
 func (UnimplementedAddressServiceServer) mustEmbedUnimplementedAddressServiceServer() {}
 func (UnimplementedAddressServiceServer) testEmbeddedByValue()                        {}
@@ -240,6 +257,24 @@ func _AddressService_DeleteAddress_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AddressService_GetAllAddresses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AddressServiceServer).GetAllAddresses(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AddressService_GetAllAddresses_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AddressServiceServer).GetAllAddresses(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AddressService_ServiceDesc is the grpc.ServiceDesc for AddressService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -266,6 +301,10 @@ var AddressService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAddress",
 			Handler:    _AddressService_DeleteAddress_Handler,
+		},
+		{
+			MethodName: "GetAllAddresses",
+			Handler:    _AddressService_GetAllAddresses_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

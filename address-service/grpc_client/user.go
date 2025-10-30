@@ -23,18 +23,18 @@ func NewUserClient() *UserClient {
 	return &UserClient{client: c}
 }
 type UserInfo struct {
-	Id 		uint
+	Id 		uint32
     Email 	string
     Name  	string
 	Role	string
 
 }
 
-func (uc *UserClient) GetUserEmail(userID uint) (*UserInfo, error) {
+func (uc *UserClient) GetUserEmail(userID uint32) (*UserInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
 
-	res, err := uc.client.GetUserByID(ctx, &pb.GetUserRequest{Id: uint32(userID)})
+	res, err := uc.client.GetUserInfo(ctx, &pb.GetUserRequest{Id: uint32(userID)})
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (uc *UserClient) GetMe(token string) (*UserInfo, error){
 	}
 
 	return &UserInfo{
-		Id:    uint(res.Id),
+		Id:    uint32(res.Id),
 		Email: res.Email,
 		Name:  res.Name,
 		Role:  res.Role,

@@ -14,20 +14,6 @@ services:
     networks:
       - app-network
 
-  product-db:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: productdb
-    volumes:
-      - product-db-data:/var/lib/postgresql/data
-    ports:
-      - "5434:5432"
-    networks:
-      - app-network
-
   address-db:
     image: postgres:15
     restart: always
@@ -39,34 +25,6 @@ services:
       - address-db-data:/var/lib/postgresql/data
     ports:
       - "5435:5432"
-    networks:
-      - app-network
-
-  cart-db:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: cartdb
-    volumes:
-      - cart-db-data:/var/lib/postgresql/data
-    ports:
-      - "5436:5432"
-    networks:
-      - app-network
-
-  wishlist-db:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: wishlistdb
-    volumes:
-      - wishlist-db-data:/var/lib/postgresql/data
-    ports:
-      - "5437:5432"
     networks:
       - app-network
 
@@ -85,24 +43,6 @@ services:
     ports:
       - "3001:3001"
       - "50001:50001"
-    networks:
-      - app-network
-
-  product-service:
-    build: ./product-service
-    container_name: product-service
-    environment:
-      - DB_HOST=product-db
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASS=postgres
-      - DB_NAME=productdb
-      - USER_SERVICE_URL=http://user-service:3001
-    depends_on:
-      - product-db
-      - user-service
-    ports:
-      - "3002:3002"
     networks:
       - app-network
 
@@ -125,38 +65,6 @@ services:
     networks:
       - app-network
 
-  cart-service:
-    build: ./cart-service
-    container_name: cart-service
-    environment:
-      - DB_HOST=cart-db
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASS=postgres
-      - DB_NAME=cartdb
-    depends_on:
-      - cart-db
-    ports:
-      - "3004:3004"
-    networks:
-      - app-network
-
-  wishlist-service:
-    build: ./wishlist-service
-    container_name: wishlist-service
-    environment:
-      - DB_HOST=wishlist-db
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASS=postgres
-      - DB_NAME=wishlistdb
-    depends_on:
-      - cart-db
-    ports:
-      - "3005:3005"
-    networks:
-      - app-network
-
   nginx:
     image: nginx:latest
     container_name: nginx
@@ -167,19 +75,13 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - user-service
-      - product-service
       - address-service
-      - cart-service
-      - wishlist-service
     networks:
       - app-network
 
 volumes:
   user-db-data:
-  product-db-data:
   address-db-data:
-  cart-db-data:
-  wishlist-db-data:
 
 networks:
   app-network:

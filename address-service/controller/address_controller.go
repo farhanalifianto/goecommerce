@@ -1,24 +1,35 @@
 package controller
 
 import (
+	"address-service/grpc_client"
 	pb "address-service/proto/address"
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type AddressController struct {
 	Client pb.AddressServiceClient
+	UserClient   *grpc_client.UserClient
 }
 
 func (ac *AddressController) List(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uint)
+	userID := c.Locals("user_id").(uint32)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	userInfo, err := ac.UserClient.GetUserEmail(userID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
 
 	resp, err := ac.Client.ListAddresses(ctx, &pb.ListAddressRequest{
 		OwnerId: uint32(userID),
@@ -26,29 +37,68 @@ func (ac *AddressController) List(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
+    type AddressResponse struct {
+        ID      uint32 `json:"id"`
+        Name    string `json:"name"`
+        Desc    string `json:"desc"`
+        OwnerID string `json:"owner_id"`
+    }
 
-	return c.JSON(resp.Addresses)
+    var out []AddressResponse
+    for _, addr := range resp.Addresses {
+        out = append(out, AddressResponse{
+            ID:      addr.Id,
+            Name:    addr.Name,
+            Desc:    addr.Desc,
+            OwnerID: userInfo.Email, // ganti owner_id angka → email
+        })
+    }
+
+    return c.JSON(out)
 }
 
 func (ac *AddressController) Get(c *fiber.Ctx) error {
 	id, err := strconv.Atoi(c.Params("id"))
 	if err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "invalid id"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
+
+	userID := c.Locals("user_id").(uint32) // dari JWT
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	resp, err := ac.Client.GetAddress(ctx, &pb.GetAddressRequest{Id: uint32(id)})
+	resp, err := ac.Client.GetAddress(ctx, &pb.GetAddressRequest{
+		Id:       uint32(id),
+		OwnerId:  userID, // kirim ke gRPC untuk validasi
+	})
 	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"error": err.Error()})
+		st, ok := status.FromError(err)
+		if ok && st.Code() == codes.PermissionDenied {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "you are not the owner of this address",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.JSON(resp.Address)
+	userInfo, err := ac.UserClient.GetUserEmail(userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	out := fiber.Map{
+		"id":         resp.Address.Id,
+		"name":       resp.Address.Name,
+		"desc":       resp.Address.Desc,
+		"owner_id":   userInfo.Email,
+	}
+
+	return c.JSON(out)
 }
 
 func (ac *AddressController) Create(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uint)
+	userID := c.Locals("user_id").(uint32)
 
 	var body struct {
 		Name string `json:"name"`
@@ -119,12 +169,56 @@ func (ac *AddressController) Delete(c *fiber.Ctx) error {
 	return c.JSON(resp)
 }
 
+func (ac *AddressController) GetAllAddresses(c *fiber.Ctx) error {
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+
+    userID := c.Locals("user_id").(uint32)
+
+    userInfo, err := ac.UserClient.GetUserEmail(userID)
+    if err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": fmt.Sprintf("failed to get user email: %v", err),
+        })
+    }
+
+    resp, err := ac.Client.GetAllAddresses(ctx, &emptypb.Empty{})
+    if err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": err.Error(),
+        })
+    }
+
+    type AddressResponse struct {
+        ID      uint32 `json:"id"`
+        Name    string `json:"name"`
+        Desc    string `json:"desc"`
+        OwnerID string `json:"owner_id"`
+    }
+
+    var out []AddressResponse
+    for _, addr := range resp.Addresses {
+        out = append(out, AddressResponse{
+            ID:      addr.Id,
+            Name:    addr.Name,
+            Desc:    addr.Desc,
+            OwnerID: userInfo.Email, // ganti owner_id angka → email
+        })
+    }
+
+    return c.JSON(out)
+}
 func NewAddressController() *AddressController {
-	conn, err := grpc.Dial("localhost:50052", grpc.WithInsecure())
+	addrConn, err := grpc.Dial("localhost:50052", grpc.WithInsecure())
 	if err != nil {
 		panic("failed to connect to address gRPC: " + err.Error())
 	}
 
-	client := pb.NewAddressServiceClient(conn)
-	return &AddressController{Client: client}
+	addrClient := pb.NewAddressServiceClient(addrConn)
+	userClient := grpc_client.NewUserClient()
+
+	return &AddressController{
+		Client: addrClient,
+		UserClient:    userClient,
+	}
 }

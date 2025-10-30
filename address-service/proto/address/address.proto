@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package address;
 
+import "google/protobuf/empty.proto";
+
 option go_package = "proto/address/";
 
 service AddressService {
@@ -10,6 +12,7 @@ service AddressService {
   rpc ListAddresses (ListAddressRequest) returns (ListAddressResponse);
   rpc UpdateAddress (UpdateAddressRequest) returns (AddressResponse);
   rpc DeleteAddress (DeleteAddressRequest) returns (DeleteAddressResponse);
+  rpc GetAllAddresses(google.protobuf.Empty) returns (GetAllAddressesResponse);
 }
 
 message Address {
@@ -28,6 +31,7 @@ message CreateAddressRequest {
 
 message GetAddressRequest {
   uint32 id = 1;
+  uint32 owner_id = 2;
 }
 
 message ListAddressRequest {
@@ -55,3 +59,11 @@ message ListAddressResponse {
 message DeleteAddressResponse {
   string message = 1;
 }
+
+message GetAllAddressesRequest {
+}
+
+message GetAllAddressesResponse {
+  repeated Address addresses = 1;
+}
+
