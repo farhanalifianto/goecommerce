@@ -2,6 +2,7 @@ package routes
 
 import (
 	"user-service/controller"
+	"user-service/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -12,8 +13,9 @@ func RegisterUserRoutes(app *fiber.App, authMiddleware fiber.Handler) {
 	api := app.Group("/api")
 	u := api.Group("/users")
 
-	u.Post("/register", uc.Register)
-	u.Post("/login", uc.Login)
+	// Hanya user terautentikasi yang bisa akses /me
 	u.Get("/me", authMiddleware, uc.Me)
-	u.Get("/", authMiddleware, uc.GetUsers)
+
+	// Hanya admin yang bisa akses semua user
+	u.Get("/all", authMiddleware, middleware.RoleRequired("admin"), uc.GetUsers)
 }

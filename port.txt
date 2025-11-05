@@ -31,6 +31,7 @@ user = 50001
 protoc --go_out=. --go-grpc_out=. proto/address/address.proto
 protoc --go_out=. --go-grpc_out=. proto/user/user.proto
 protoc --go_out=. --go-grpc_out=. proto/product/product.proto
+protoc --go_out=. --go-grpc_out=. proto/auth/auth.proto
 
 
 progress project

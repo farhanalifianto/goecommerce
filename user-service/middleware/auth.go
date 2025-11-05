@@ -1,50 +1,50 @@
 package middleware
 
 import (
-	"fmt"
+	"context"
+	"strings"
+	authpb "user-service/proto/auth"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
+	"google.golang.org/grpc"
 )
 
-func AuthRequired(secret string) fiber.Handler {
+func AuthMiddleware() fiber.Handler {
+	conn, err := grpc.Dial("auth-service:50052", grpc.WithInsecure())
+	if err != nil {
+		panic("failed to connect to auth-service gRPC: " + err.Error())
+	}
+	client := authpb.NewAuthServiceClient(conn)
+
 	return func(c *fiber.Ctx) error {
-		header := c.Get("Authorization")
-		if header == "" {
-			return c.Status(401).JSON(fiber.Map{"error": "missing auth"})
+		authHeader := c.Get("Authorization")
+		if authHeader == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "missing token"})
 		}
-		var tokenStr string
-		fmt.Sscanf(header, "Bearer %s", &tokenStr)
 
-		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-			return []byte(secret), nil
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+
+		res, err := client.ValidateToken(context.Background(), &authpb.ValidateTokenRequest{
+			Token: token,
 		})
-		if err != nil || !token.Valid {
-			return c.Status(401).JSON(fiber.Map{"error": "invalid token"})
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid token"})
 		}
-		claims := token.Claims.(jwt.MapClaims)
-		sub := uint(claims["sub"].(float64))
 
-		c.Locals("user_id", sub)
-		c.Locals("user_email", claims["email"].(string))
-		c.Locals("user_role", claims["role"].(string))
+		c.Locals("user_id", res.Id)
+		c.Locals("email", res.Email)
+		c.Locals("role", res.Role)
+
 		return c.Next()
 	}
 }
 
-func RoleRequired(roles ...string) fiber.Handler {
+func RoleRequired(role string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userRole := c.Locals("user_role")
-		if userRole == nil {
-			return c.Status(403).JSON(fiber.Map{"error": "no role"})
+		userRole := c.Locals("role")
+		if userRole != role {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden: admin only"})
 		}
-
-		role := userRole.(string)
-		for _, r := range roles {
-			if role == r {
-				return c.Next()
-			}
-		}
-		return c.Status(403).JSON(fiber.Map{"error": "forbidden"})
+		return c.Next()
 	}
 }

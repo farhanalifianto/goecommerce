@@ -1,5 +1,7 @@
 version: "3.8"
+
 services:
+  # --- Databases ---
   user-db:
     image: postgres:15
     restart: always
@@ -28,6 +30,39 @@ services:
     networks:
       - app-network
 
+  auth-db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: authdb
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    networks:
+      - app-network
+
+  # --- Services ---
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    environment:
+      - DB_HOST=auth-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASS=postgres
+      - DB_NAME=authdb
+      - JWT_SECRET=verysecretkey
+    depends_on:
+      - auth-db
+    ports:
+      - "3002:3002" # HTTP
+      - "50052:50052" # gRPC
+    networks:
+      - app-network
+
   user-service:
     build: ./user-service
     container_name: user-service
@@ -37,12 +72,14 @@ services:
       - DB_USER=postgres
       - DB_PASS=postgres
       - DB_NAME=userdb
-      - JWT_SECRET=verysecretkey
+      - AUTH_GRPC_HOST=auth-service
+      - AUTH_GRPC_PORT=50052
     depends_on:
       - user-db
+      - auth-service
     ports:
-      - "3001:3001"
-      - "50001:50001"
+      - "3001:3001" # HTTP
+      - "50051:50051" # gRPC
     networks:
       - app-network
 
@@ -61,10 +98,11 @@ services:
       - user-service
     ports:
       - "3003:3003"
-      - "50052:50052"
+      - "50053:50053"
     networks:
       - app-network
 
+  # --- API Gateway ---
   nginx:
     image: nginx:latest
     container_name: nginx
@@ -76,13 +114,17 @@ services:
     depends_on:
       - user-service
       - address-service
+      - auth-service
     networks:
       - app-network
 
+# --- Volumes ---
 volumes:
   user-db-data:
   address-db-data:
+  auth-db-data:
 
+# --- Network ---
 networks:
   app-network:
     driver: bridge

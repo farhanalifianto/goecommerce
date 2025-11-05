@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"user-service/grpc_server"
+	"user-service/middleware"
 	"user-service/model"
 	pb "user-service/proto/user"
 	"user-service/routes"
@@ -18,6 +19,9 @@ import (
 
 var DB *gorm.DB
 
+// --------------------
+// Database Init
+// --------------------
 func initDB() {
 	host := getEnv("DB_HOST", "localhost")
 	port := getEnv("DB_PORT", "5432")
@@ -33,22 +37,24 @@ func initDB() {
 	}
 
 	DB.AutoMigrate(&model.User{})
+	log.Println("Connected to user database:", name)
 }
 
+// --------------------
+// Main Function
+// --------------------
 func main() {
 	initDB()
 
-	jwtSecret := "supersecret"
+	jwtSecret := "verysecretkey"
 
-	// Jalankan Fiber
+	// Jalankan HTTP (Fiber)
 	go func() {
 		app := fiber.New()
 		app.Use(logger.New())
 
-		routes.RegisterUserRoutes(app, func(c *fiber.Ctx) error {
-			// placeholder authMiddleware
-			return c.Next()
-		})
+		// Register routes dengan middleware Auth
+		routes.RegisterUserRoutes(app, middleware.AuthMiddleware())
 
 		log.Println("HTTP running on :3001")
 		if err := app.Listen(":3001"); err != nil {
@@ -56,7 +62,7 @@ func main() {
 		}
 	}()
 
-	// Jalankan gRPC
+	// Jalankan gRPC Server
 	go func() {
 		listener, err := net.Listen("tcp", ":50051")
 		if err != nil {
@@ -73,6 +79,10 @@ func main() {
 
 	select {}
 }
+
+// --------------------
+// Helper
+// --------------------
 func getEnv(k, d string) string {
 	if v := os.Getenv(k); v != "" {
 		return v

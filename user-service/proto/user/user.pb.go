@@ -557,14 +557,11 @@ const file_proto_user_user_proto_rawDesc = "" +
 	"\x15ValidateTokenResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x12\n" +
-	"\x04role\x18\x03 \x01(\tR\x04role2\xd8\x02\n" +
-	"\vUserService\x125\n" +
-	"\bRegister\x12\x15.user.RegisterRequest\x1a\x12.user.UserResponse\x120\n" +
-	"\x05Login\x12\x12.user.LoginRequest\x1a\x13.user.LoginResponse\x127\n" +
+	"\x04role\x18\x03 \x01(\tR\x04role2\xa5\x01\n" +
+	"\vUserService\x127\n" +
 	"\vGetUserInfo\x12\x14.user.GetUserRequest\x1a\x12.user.UserResponse\x12/\n" +
 	"\x05GetMe\x12\x12.user.GetMeRequest\x1a\x12.user.UserResponse\x12,\n" +
-	"\bGetUsers\x12\v.user.Empty\x1a\x13.user.UsersResponse\x12H\n" +
-	"\rValidateToken\x12\x1a.user.ValidateTokenRequest\x1a\x1b.user.ValidateTokenResponseB\rZ\vproto/user/b\x06proto3"
+	"\bGetUsers\x12\v.user.Empty\x1a\x13.user.UsersResponseB\rZ\vproto/user/b\x06proto3"
 
 var (
 	file_proto_user_user_proto_rawDescOnce sync.Once
@@ -593,20 +590,14 @@ var file_proto_user_user_proto_goTypes = []any{
 }
 var file_proto_user_user_proto_depIdxs = []int32{
 	4, // 0: user.UsersResponse.users:type_name -> user.UserResponse
-	0, // 1: user.UserService.Register:input_type -> user.RegisterRequest
-	1, // 2: user.UserService.Login:input_type -> user.LoginRequest
-	2, // 3: user.UserService.GetUserInfo:input_type -> user.GetUserRequest
-	3, // 4: user.UserService.GetMe:input_type -> user.GetMeRequest
-	7, // 5: user.UserService.GetUsers:input_type -> user.Empty
-	8, // 6: user.UserService.ValidateToken:input_type -> user.ValidateTokenRequest
-	4, // 7: user.UserService.Register:output_type -> user.UserResponse
-	5, // 8: user.UserService.Login:output_type -> user.LoginResponse
-	4, // 9: user.UserService.GetUserInfo:output_type -> user.UserResponse
-	4, // 10: user.UserService.GetMe:output_type -> user.UserResponse
-	6, // 11: user.UserService.GetUsers:output_type -> user.UsersResponse
-	9, // 12: user.UserService.ValidateToken:output_type -> user.ValidateTokenResponse
-	7, // [7:13] is the sub-list for method output_type
-	1, // [1:7] is the sub-list for method input_type
+	2, // 1: user.UserService.GetUserInfo:input_type -> user.GetUserRequest
+	3, // 2: user.UserService.GetMe:input_type -> user.GetMeRequest
+	7, // 3: user.UserService.GetUsers:input_type -> user.Empty
+	4, // 4: user.UserService.GetUserInfo:output_type -> user.UserResponse
+	4, // 5: user.UserService.GetMe:output_type -> user.UserResponse
+	6, // 6: user.UserService.GetUsers:output_type -> user.UsersResponse
+	4, // [4:7] is the sub-list for method output_type
+	1, // [1:4] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name

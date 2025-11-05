@@ -12,34 +12,6 @@ type UserController struct {
 	Client pb.UserServiceClient
 }
 
-
-
-func (uc *UserController) Register(c *fiber.Ctx) error {
-	var req pb.RegisterRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
-	}
-
-	res, err := uc.Client.Register(context.Background(), &req)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
-	}
-	return c.JSON(res)
-}
-
-func (uc *UserController) Login(c *fiber.Ctx) error {
-	var req pb.LoginRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
-	}
-
-	res, err := uc.Client.Login(context.Background(), &req)
-	if err != nil {
-		return c.Status(401).JSON(fiber.Map{"error": err.Error()})
-	}
-	return c.JSON(res)
-}
-
 func (uc *UserController) Me(c *fiber.Ctx) error {
 	authHeader := c.Get("Authorization")
 	if authHeader == "" {

@@ -1,55 +1,50 @@
 package middleware
 
 import (
+	authpb "address-service/proto/auth"
 	"context"
 	"strings"
-
-	pb "address-service/proto/user"
 
 	"github.com/gofiber/fiber/v2"
 	"google.golang.org/grpc"
 )
 
-func AuthRequired(c *fiber.Ctx) error {
-	authHeader := c.Get("Authorization")
-	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-		return c.Status(401).JSON(fiber.Map{"error": "missing or invalid token"})
-	}
-	token := strings.TrimPrefix(authHeader, "Bearer ")
-
-	conn, err := grpc.Dial("user-service:50051", grpc.WithInsecure())
+func AuthMiddleware() fiber.Handler {
+	conn, err := grpc.Dial("auth-service:50052", grpc.WithInsecure())
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "failed to connect auth service"})
+		panic("failed to connect to auth-service gRPC: " + err.Error())
 	}
-	defer conn.Close()
+	client := authpb.NewAuthServiceClient(conn)
 
-	client := pb.NewUserServiceClient(conn)
-	res, err := client.ValidateToken(context.Background(), &pb.ValidateTokenRequest{Token: token})
-	if err != nil {
-		return c.Status(401).JSON(fiber.Map{"error": "invalid token"})
-	}
-
-	// simpan user info di context
-	c.Locals("user_id", res.Id)
-	c.Locals("user_email", res.Email)
-	c.Locals("user_role", res.Role)
-
-	return c.Next()
-}
-func RoleRequired(roles ...string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		role := c.Locals("user_role")
-		if role == nil {
-			return c.Status(401).JSON(fiber.Map{"error": "missing role info"})
+		authHeader := c.Get("Authorization")
+		if authHeader == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "missing token"})
 		}
 
-		userRole := role.(string)
-		for _, allowed := range roles {
-			if userRole == allowed {
-				return c.Next()
-			}
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+
+		res, err := client.ValidateToken(context.Background(), &authpb.ValidateTokenRequest{
+			Token: token,
+		})
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid token"})
 		}
 
-		return c.Status(403).JSON(fiber.Map{"error": "forbidden: insufficient role"})
+		c.Locals("user_id", res.Id)
+		c.Locals("email", res.Email)
+		c.Locals("role", res.Role)
+
+		return c.Next()
+	}
+}
+
+func RoleRequired(role string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userRole := c.Locals("role")
+		if userRole != role {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden: admin only"})
+		}
+		return c.Next()
 	}
 }
