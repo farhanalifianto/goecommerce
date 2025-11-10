@@ -173,15 +173,7 @@ func (ac *AddressController) GetAllAddresses(c *fiber.Ctx) error {
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
 
-    userID := c.Locals("user_id").(uint32)
-
-    userInfo, err := ac.UserClient.GetUserEmail(userID)
-    if err != nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-            "error": fmt.Sprintf("failed to get user email: %v", err),
-        })
-    }
-
+    // Ambil semua address dari AddressService
     resp, err := ac.Client.GetAllAddresses(ctx, &emptypb.Empty{})
     if err != nil {
         return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -189,20 +181,38 @@ func (ac *AddressController) GetAllAddresses(c *fiber.Ctx) error {
         })
     }
 
+    // Struct untuk response JSON
     type AddressResponse struct {
-        ID      uint32 `json:"id"`
-        Name    string `json:"name"`
-        Desc    string `json:"desc"`
-        OwnerID string `json:"owner_id"`
+        ID         uint32 `json:"id"`
+        Name       string `json:"name"`
+        Desc       string `json:"desc"`
+        OwnerEmail string `json:"owner_email"`
     }
 
     var out []AddressResponse
+
+    // Loop semua address
     for _, addr := range resp.Addresses {
+        // --- Panggil gRPC ke UserService untuk ambil email ---
+        userResp, err := ac.UserClient.GetUserEmail(addr.OwnerId)
+        if err != nil {
+            // Kalau error, bisa lanjut tapi kasih tanda error di email-nya
+            fmt.Printf("failed to get email for owner_id=%d: %v\n", addr.OwnerId, err)
+            out = append(out, AddressResponse{
+                ID:         addr.Id,
+                Name:       addr.Name,
+                Desc:       addr.Desc,
+                OwnerEmail: fmt.Sprintf("error: %v", err),
+            })
+            continue
+        }
+
+        // Tambahkan hasil ke response
         out = append(out, AddressResponse{
-            ID:      addr.Id,
-            Name:    addr.Name,
-            Desc:    addr.Desc,
-            OwnerID: userInfo.Email, // ganti owner_id angka → email
+            ID:         addr.Id,
+            Name:       addr.Name,
+            Desc:       addr.Desc,
+            OwnerEmail: userResp.Email,
         })
     }
 
