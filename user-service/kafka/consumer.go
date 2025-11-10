@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"user-service/model"
 
 	"github.com/IBM/sarama"
+	"gorm.io/gorm"
 )
 
-func StartUserCreatedConsumer() {
+// Terima DB agar bisa disimpan
+func StartUserCreatedConsumer(db *gorm.DB) {
 	broker := os.Getenv("KAFKA_BROKER")
 	if broker == "" {
 		broker = "kafka:9092"
@@ -42,7 +45,20 @@ func StartUserCreatedConsumer() {
 			}
 			log.Printf("📥 Received user.created event: %+v", user)
 
-			// TODO: Simpan user ke DB user-service
+			// Simpan ke DB
+			u := model.User{
+				ID:    uint(user["id"].(float64)),
+				Email: user["email"].(string),
+				Name:  user["name"].(string),
+				Role:  user["role"].(string),
+			}
+
+			if err := db.Create(&u).Error; err != nil {
+				log.Printf("❌ Failed to save user: %v", err)
+			} else {
+				log.Printf("✅ User saved to database: %v", u.Email)
+			}
+
 		case err := <-partitionConsumer.Errors():
 			log.Printf("Kafka consumer error: %v", err)
 		case <-context.Background().Done():

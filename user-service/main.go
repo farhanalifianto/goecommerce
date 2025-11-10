@@ -78,7 +78,7 @@ func main() {
 		}
 	}()
 
-	go kafka.StartUserCreatedConsumer()
+	go kafka.StartUserCreatedConsumer(DB)
 
 	select {}
 }
