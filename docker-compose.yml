@@ -80,6 +80,7 @@ services:
     depends_on:
       - user-db
       - auth-service
+      - kafka
     ports:
       - "3001:3001" # HTTP
       - "50051:50051" # gRPC
@@ -100,6 +101,7 @@ services:
     depends_on:
       - address-db
       - user-service
+      - kafka
     ports:
       - "3003:3003"
       - "50053:50053"

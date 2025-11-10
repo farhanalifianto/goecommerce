@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"time"
 	"user-service/model"
 
 	"github.com/IBM/sarama"
 	"gorm.io/gorm"
 )
 
-// Terima DB agar bisa disimpan
 func StartUserCreatedConsumer(db *gorm.DB) {
 	broker := os.Getenv("KAFKA_BROKER")
 	if broker == "" {
@@ -21,15 +21,29 @@ func StartUserCreatedConsumer(db *gorm.DB) {
 	config := sarama.NewConfig()
 	config.Consumer.Return.Errors = true
 
-	client, err := sarama.NewConsumer([]string{broker}, config)
+	var client sarama.Consumer
+	var err error
+
+	// 🔁 Coba connect ke Kafka sampai 5 kali
+	for i := 1; i <= 5; i++ {
+		client, err = sarama.NewConsumer([]string{broker}, config)
+		if err == nil {
+			log.Printf("✅ Connected to Kafka broker: %s", broker)
+			break
+		}
+		log.Printf("⚠️ Failed to connect to Kafka (try %d/5): %v", i, err)
+		time.Sleep(5 * time.Second)
+	}
+
 	if err != nil {
-		log.Fatalf("Failed to start Kafka consumer: %v", err)
+		log.Fatalf("❌ Could not connect to Kafka after retries: %v", err)
 	}
 	defer client.Close()
 
+	// 🧩 Pastikan topic "user.created" ada
 	partitionConsumer, err := client.ConsumePartition("user.created", 0, sarama.OffsetNewest)
 	if err != nil {
-		log.Fatalf("Failed to start partition consumer: %v", err)
+		log.Fatalf("❌ Failed to start partition consumer: %v", err)
 	}
 	defer partitionConsumer.Close()
 
@@ -45,12 +59,18 @@ func StartUserCreatedConsumer(db *gorm.DB) {
 			}
 			log.Printf("📥 Received user.created event: %+v", user)
 
-			// Simpan ke DB
 			u := model.User{
 				ID:    uint(user["id"].(float64)),
 				Email: user["email"].(string),
 				Name:  user["name"].(string),
 				Role:  user["role"].(string),
+			}
+
+			// 🧠 Cek dulu apakah user sudah ada
+			var existing model.User
+			if err := db.Where("id = ?", u.ID).First(&existing).Error; err == nil {
+				log.Printf("⚠️ User already exists, skipping: %v", u.Email)
+				continue
 			}
 
 			if err := db.Create(&u).Error; err != nil {
@@ -60,8 +80,9 @@ func StartUserCreatedConsumer(db *gorm.DB) {
 			}
 
 		case err := <-partitionConsumer.Errors():
-			log.Printf("Kafka consumer error: %v", err)
+			log.Printf("⚠️ Kafka consumer error: %v", err)
 		case <-context.Background().Done():
+			log.Println("🛑 Kafka consumer stopped.")
 			return
 		}
 	}
