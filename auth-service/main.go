@@ -2,6 +2,8 @@ package main
 
 import (
 	"auth-service/grpc_server"
+	"auth-service/kafka"
+
 	"auth-service/model"
 	pb "auth-service/proto/auth"
 	"auth-service/routes"
@@ -48,7 +50,7 @@ func initDB() {
 // --------------------
 func main() {
 	initDB()
-
+	kafka.InitProducer()
 	jwtSecret := getEnv("JWT_SECRET", "verysecretkey")
 
 	// Jalankan HTTP (Fiber)

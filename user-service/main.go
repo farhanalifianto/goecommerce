@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"user-service/grpc_server"
+	kafka "user-service/kafka"
 	"user-service/middleware"
 	"user-service/model"
 	pb "user-service/proto/user"
@@ -76,6 +77,8 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
+
+	go kafka.StartUserCreatedConsumer()
 
 	select {}
 }

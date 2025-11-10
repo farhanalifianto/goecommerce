@@ -55,8 +55,10 @@ services:
       - DB_PASS=postgres
       - DB_NAME=authdb
       - JWT_SECRET=verysecretkey
+      - KAFKA_BROKER=kafka:9092
     depends_on:
       - auth-db
+      - kafka
     ports:
       - "3002:3002" # HTTP
       - "50052:50052" # gRPC
@@ -74,6 +76,7 @@ services:
       - DB_NAME=userdb
       - AUTH_GRPC_HOST=auth-service
       - AUTH_GRPC_PORT=50052
+      - KAFKA_BROKER=kafka:9092
     depends_on:
       - user-db
       - auth-service
@@ -93,12 +96,39 @@ services:
       - DB_PASS=postgres
       - DB_NAME=addressdb
       - USER_SERVICE_URL=http://user-service:3001
+      - KAFKA_BROKER=kafka:9092
     depends_on:
       - address-db
       - user-service
     ports:
       - "3003:3003"
       - "50053:50053"
+    networks:
+      - app-network
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.7.1
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - app-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.1
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     networks:
       - app-network
 

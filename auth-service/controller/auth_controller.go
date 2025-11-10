@@ -6,7 +6,11 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"google.golang.org/grpc"
+
+	kafka "auth-service/kafka"
 )
+
+
 
 type AuthController struct {
 	Client auth.AuthServiceClient
@@ -31,6 +35,7 @@ func (ac *AuthController) Register(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
+	go kafka.PublishUserCreatedEvent(res)
 
 	return c.JSON(res)
 }
