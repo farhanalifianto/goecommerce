@@ -9,7 +9,9 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 
+	"github.com/IBM/sarama"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"google.golang.org/grpc"
@@ -38,8 +40,33 @@ func initDB() {
 	}
 }
 
+func initKafkaProducer() sarama.SyncProducer {
+	brokers := []string{getEnv("KAFKA_BROKER", "kafka:9092")}
+
+	config := sarama.NewConfig()
+	config.Producer.Return.Successes = true
+	config.Producer.RequiredAcks = sarama.WaitForAll
+
+	var producer sarama.SyncProducer
+	var err error
+
+	for i := 1; i <= 10; i++ {
+		producer, err = sarama.NewSyncProducer(brokers, config)
+		if err == nil {
+			log.Println("✅ Connected to Kafka broker", brokers)
+			return producer
+		}
+		log.Printf("⏳ Waiting for Kafka... (%d/10) Error: %v", i, err)
+		time.Sleep(5 * time.Second)
+	}
+
+	log.Fatalf("❌ Could not connect to Kafka after retries: %v", err)
+	return nil
+}
+
 func main() {
 	initDB()
+	producer := initKafkaProducer()
 
 	go func() {
 		app := fiber.New()
@@ -61,7 +88,7 @@ func main() {
 		}
 
 		grpcServer := grpc.NewServer()
-		addressServer := &grpc_server.AddressServer{DB: DB}
+		addressServer := &grpc_server.AddressServer{DB: DB,KafkaProducer: producer,}
 		pb.RegisterAddressServiceServer(grpcServer, addressServer)
 
 		log.Println("🛰️ gRPC server running on port 50052")

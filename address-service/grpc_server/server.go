@@ -4,8 +4,11 @@ import (
 	"address-service/model"
 	pb "address-service/proto/address"
 	"context"
+	"encoding/json"
+	"log"
 	"time"
 
+	"github.com/IBM/sarama"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -15,21 +18,56 @@ import (
 type AddressServer struct {
 	pb.UnimplementedAddressServiceServer
 	DB *gorm.DB
+
+	// === 📤 Kirim event ke Kafka ===
+	KafkaProducer sarama.SyncProducer
 }
 
 func (s *AddressServer) CreateAddress(ctx context.Context, req *pb.CreateAddressRequest) (*pb.AddressResponse, error) {
-	address := model.Address{
-		Name:      req.Name,
-		Desc:      req.Desc,
-		OwnerID:   uint(req.OwnerId),
-		CreatedAt: time.Now(),
-	}
+    address := model.Address{
+        Name:    req.Name,
+        Desc:    req.Desc,
+        OwnerID: uint(req.OwnerId),
+    }
 
-	if err := s.DB.Create(&address).Error; err != nil {
-		return nil, err
-	}
+    // Simpan ke DB
+    if err := s.DB.Create(&address).Error; err != nil {
+        return nil, err
+    }
 
-	return &pb.AddressResponse{Address: toProto(address)}, nil
+    // === 📤 Kirim event ke Kafka ===
+    event := map[string]interface{}{
+        "event_type": "address_created",
+        "data": map[string]interface{}{
+            "id":       address.ID,
+            "name":     address.Name,
+            "desc":     address.Desc,
+            "owner_id": address.OwnerID,
+        },
+    }
+
+    msgBytes, _ := json.Marshal(event)
+    msg := &sarama.ProducerMessage{
+        Topic: "address_events",
+        Value: sarama.StringEncoder(msgBytes),
+    }
+
+    _, _, err := s.KafkaProducer.SendMessage(msg)
+    if err != nil {
+        log.Printf("⚠️ Failed to send Kafka message: %v", err)
+    } else {
+        log.Printf("📨 Sent event to Kafka: address_created for ID %d", address.ID)
+    }
+
+    // === Response ===
+    return &pb.AddressResponse{
+        Address: &pb.Address{
+            Id:      uint32(address.ID),
+            Name:    address.Name,
+            Desc:    address.Desc,
+            OwnerId: uint32(address.OwnerID),
+        },
+    }, nil
 }
 
 func (s *AddressServer) GetAddress(ctx context.Context, in *pb.GetAddressRequest) (*pb.AddressResponse, error) {
