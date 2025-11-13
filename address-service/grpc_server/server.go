@@ -52,6 +52,8 @@ func (s *AddressServer) CreateAddress(ctx context.Context, req *pb.CreateAddress
         Value: sarama.StringEncoder(msgBytes),
     }
 
+	log.Printf("📦 Event payload: %+v", event)
+
     _, _, err := s.KafkaProducer.SendMessage(msg)
     if err != nil {
         log.Printf("⚠️ Failed to send Kafka message: %v", err)
