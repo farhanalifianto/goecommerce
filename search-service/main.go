@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"search-service/elasticsearch"
+	"search-service/middleware"
 	"search-service/routes"
 
 	"github.com/IBM/sarama"
@@ -89,9 +90,9 @@ func main() {
 	// --- Jalankan server HTTP ---
 	go func() {
 		app := fiber.New()
-
+		authWrapper := middleware.AuthMiddleware()
 		// Panggil route terpisah
-		routes.RegisterSearchRoutes(app, esClient)
+		routes.RegisterSearchRoutes(app,authWrapper, esClient)
 
 		log.Println("🌐 HTTP server running on port 3004")
 		if err := app.Listen(":3004"); err != nil {
