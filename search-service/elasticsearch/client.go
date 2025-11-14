@@ -21,7 +21,7 @@ func (es *ElasticClient) IndexAddress(address map[string]interface{}) error {
 	index := "address"
 	idValue, ok := address["id"]
 	if !ok {
-		return fmt.Errorf("❌ missing id field in address")
+		return fmt.Errorf("missing id field in address")
 	}
 
 	id := fmt.Sprintf("%v", idValue)
@@ -48,7 +48,7 @@ func (es *ElasticClient) IndexAddress(address map[string]interface{}) error {
 		return fmt.Errorf("failed to index document: %s", resp.Status)
 	}
 
-	log.Printf("✅ Indexed address %s to Elasticsearch", id)
+	log.Printf("Indexed address %s to Elasticsearch", id)
 	return nil
 }
 
@@ -65,7 +65,7 @@ func (es *ElasticClient) DeleteAddress(id string) error {
         return fmt.Errorf("failed to delete document: %s", resp.Status)
     }
 
-    log.Printf("🗑️ Deleted address %s from Elasticsearch", id)
+    log.Printf("Deleted address %s from Elasticsearch", id)
     return nil
 }
 

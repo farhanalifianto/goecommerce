@@ -11,7 +11,7 @@ func RegisterSearchRoutes(app *fiber.App, authMiddleware fiber.Handler, esClient
 	api := app.Group("/api")
 	s := api.Group("/search")
 
-	// 🔒 Private: hanya user login yang bisa cari alamat
+	//admin only
 	s.Get("/address", authMiddleware, middleware.RoleRequired("admin"), func(c *fiber.Ctx) error {
 		q := c.Query("q")
 		if q == "" {

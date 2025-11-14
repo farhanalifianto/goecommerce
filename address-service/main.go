@@ -77,12 +77,12 @@ func main() {
 
 		grpcServer := grpc.NewServer()
 		addressServer := &grpc_server.AddressServer{
-			DB:            SQLDB, // 🔥 pakai SQLDB, bukan GORM
+			DB:            SQLDB,
 			Producer: producer,
 		}
 		pb.RegisterAddressServiceServer(grpcServer, addressServer)
 
-		log.Println("🛰️ gRPC server running on port 50052")
+		log.Println("gRPC server running on port 50052")
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("failed to serve gRPC: %v", err)
 		}

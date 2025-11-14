@@ -29,11 +29,11 @@ broker := os.Getenv("KAFKA_BROKER")
 	for i := 1; i <= 10; i++ {
 		producer, err = sarama.NewSyncProducer([]string{broker}, config)
 		if err == nil {
-			log.Println("✅ Kafka producer initialized for address-service")
+			log.Println("Kafka producer initialized for address-service")
 			return &Producer{producer: producer}
 		}
 
-		log.Printf("⏳ Waiting for Kafka... (%d/10) Error: %v", i, err)
+		log.Printf("Waiting for Kafka... (%d/10) Error: %v", i, err)
 		time.Sleep(5 * time.Second)
 	}
 
@@ -55,7 +55,7 @@ func (p *Producer) PublishAddressCreatedEvent(event interface{}) {
 
 	_, _, err = p.producer.SendMessage(msg)
 	if err != nil {
-		log.Printf("❌ Failed to send Kafka message: %v", err)
+		log.Printf("Failed to send Kafka message: %v", err)
 		return
 	}
 
@@ -64,7 +64,7 @@ func (p *Producer) PublishAddressCreatedEvent(event interface{}) {
 func (p *Producer) PublishAddressUpdatedEvent(event interface{}) {
 	data, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("❌ Failed to marshal event: %v", err)
+		log.Printf("Failed to marshal event: %v", err)
 		return
 	}
 
@@ -75,17 +75,17 @@ func (p *Producer) PublishAddressUpdatedEvent(event interface{}) {
 
 	_, _, err = p.producer.SendMessage(msg)
 	if err != nil {
-		log.Printf("❌ Failed to send Kafka message: %v", err)
+		log.Printf("Failed to send Kafka message: %v", err)
 		return
 	}
 
-	log.Printf("📤 Published address.updated event: %v", string(data))
+	log.Printf("Published address.updated event: %v", string(data))
 }
 
 func (p *Producer) PublishAddressDeletedEvent(event interface{}) {
 	data, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("❌ Failed to marshal event: %v", err)
+		log.Printf("Failed to marshal event: %v", err)
 		return
 	}
 
@@ -96,9 +96,9 @@ func (p *Producer) PublishAddressDeletedEvent(event interface{}) {
 
 	_, _, err = p.producer.SendMessage(msg)
 	if err != nil {
-		log.Printf("❌ Failed to send Kafka message: %v", err)
+		log.Printf("Failed to send Kafka message: %v", err)
 		return
 	}
 
-	log.Printf("📤 Published address.deleted event: %v", string(data))
+	log.Printf("Published address.deleted event: %v", string(data))
 }

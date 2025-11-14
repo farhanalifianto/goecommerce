@@ -43,7 +43,7 @@ func connectKafka(broker string) sarama.ConsumerGroup {
 		time.Sleep(5 * time.Second)
 	}
 
-	log.Fatalf("❌ Failed to connect Kafka after retries: %v", err)
+	log.Fatalf(" Failed to connect Kafka after retries: %v", err)
 	return nil
 }
 
@@ -125,7 +125,6 @@ func main() {
 	esClient := elasticsearch.NewElasticClient(esHost)
 
 
-	// --- Jalankan server HTTP ---
 	go func() {
 		app := fiber.New()
 		authWrapper := middleware.AuthMiddleware()
@@ -138,7 +137,6 @@ func main() {
 		}
 	}()
 
-	// --- Jalankan Kafka consumer ---
 	consumerGroup := connectKafka(broker)
 	handler := &ConsumerHandler{esClient: esClient}
 
@@ -153,7 +151,7 @@ func main() {
 
 	for {
 		if err := consumerGroup.Consume(ctx, topics, handler); err != nil {
-			log.Printf("❌ Kafka consume error: %v", err)
+			log.Printf(" Kafka consume error: %v", err)
 			time.Sleep(5 * time.Second)
 		}
 	}
