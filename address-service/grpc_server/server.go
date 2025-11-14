@@ -1,164 +1,199 @@
 package grpc_server
 
 import (
-	"address-service/model"
-	pb "address-service/proto/address"
 	"context"
-	"encoding/json"
-	"log"
+	"database/sql"
 	"time"
 
-	"github.com/IBM/sarama"
+	kafka "address-service/kafka"
+	"address-service/model"
+	pb "address-service/proto/address"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"gorm.io/gorm"
 )
 
 type AddressServer struct {
 	pb.UnimplementedAddressServiceServer
-	DB *gorm.DB
-
-	// === 📤 Kirim event ke Kafka ===
-	KafkaProducer sarama.SyncProducer
+	DB            *sql.DB
+	Producer *kafka.Producer
 }
 
 func (s *AddressServer) CreateAddress(ctx context.Context, req *pb.CreateAddressRequest) (*pb.AddressResponse, error) {
-    address := model.Address{
-        Name:    req.Name,
-        Desc:    req.Desc,
-        OwnerID: uint(req.OwnerId),
-    }
+	query := `INSERT INTO addresses (name, "desc", owner_id, created_at) VALUES ($1, $2, $3, NOW()) RETURNING id`
+	var id uint32
 
-    // Simpan ke DB
-    if err := s.DB.Create(&address).Error; err != nil {
-        return nil, err
-    }
-
-    // === 📤 Kirim event ke Kafka ===
-    event := map[string]interface{}{
-        "event_type": "address_created",
-        "data": map[string]interface{}{
-            "id":       address.ID,
-            "name":     address.Name,
-            "desc":     address.Desc,
-            "owner_id": address.OwnerID,
-        },
-    }
-
-    msgBytes, _ := json.Marshal(event)
-    msg := &sarama.ProducerMessage{
-        Topic: "address_events",
-        Value: sarama.StringEncoder(msgBytes),
-    }
-
-	log.Printf("📦 Event payload: %+v", event)
-
-    _, _, err := s.KafkaProducer.SendMessage(msg)
-    if err != nil {
-        log.Printf("⚠️ Failed to send Kafka message: %v", err)
-    } else {
-        log.Printf("📨 Sent event to Kafka: address_created for ID %d", address.ID)
-    }
-
-    // === Response ===
-    return &pb.AddressResponse{
-        Address: &pb.Address{
-            Id:      uint32(address.ID),
-            Name:    address.Name,
-            Desc:    address.Desc,
-            OwnerId: uint32(address.OwnerID),
-        },
-    }, nil
-}
-
-func (s *AddressServer) GetAddress(ctx context.Context, in *pb.GetAddressRequest) (*pb.AddressResponse, error) {
-	var address model.Address
-	if err := s.DB.First(&address, in.Id).Error; err != nil {
-		return nil, status.Errorf(codes.NotFound, "address not found")
+	err := s.DB.QueryRowContext(ctx, query, req.Name, req.Desc, req.OwnerId).Scan(&id)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to insert: %v", err)
 	}
 
-	// ✅ Validasi: hanya owner yang boleh ambil data
-	if address.OwnerID != uint(in.OwnerId) {
+	event := map[string]interface{}{
+		"event_type": "address_created",
+		"data": map[string]interface{}{
+			"id":       id,
+			"name":     req.Name,
+			"desc":     req.Desc,
+			"owner_id": req.OwnerId,
+		},
+	}
+
+	s.Producer.PublishAddressCreatedEvent(event)
+
+	return &pb.AddressResponse{
+		Address: &pb.Address{
+			Id:      id,
+			Name:    req.Name,
+			Desc:    req.Desc,
+			OwnerId: req.OwnerId,
+		},
+	}, nil
+}
+
+
+func (s *AddressServer) GetAddress(ctx context.Context, in *pb.GetAddressRequest) (*pb.AddressResponse, error) {
+	query := `SELECT id, name, "desc", owner_id, created_at FROM addresses WHERE id = $1`
+	row := s.DB.QueryRowContext(ctx, query, in.Id)
+
+	var a model.Address
+	err := row.Scan(&a.ID, &a.Name, &a.Desc, &a.OwnerID, &a.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, status.Errorf(codes.NotFound, "address not found")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "query error: %v", err)
+	}
+
+	// Validasi owner
+	if a.OwnerID != uint(in.OwnerId) {
 		return nil, status.Errorf(codes.PermissionDenied, "unauthorized: not your address")
 	}
 
 	return &pb.AddressResponse{
 		Address: &pb.Address{
-			Id:        uint32(address.ID),
-			Name:      address.Name,
-			Desc:      address.Desc,
-			OwnerId:   uint32(address.OwnerID),
+			Id:        uint32(a.ID),
+			Name:      a.Name,
+			Desc:      a.Desc,
+			OwnerId:   uint32(a.OwnerID),
+			CreatedAt: a.CreatedAt.Format(time.RFC3339),
 		},
 	}, nil
 }
 
+
 func (s *AddressServer) ListAddresses(ctx context.Context, req *pb.ListAddressRequest) (*pb.ListAddressResponse, error) {
-	var addresses []model.Address
-	if err := s.DB.Where("owner_id = ?", req.OwnerId).Find(&addresses).Error; err != nil {
-		return nil, err
+	query := `SELECT id, name, "desc", owner_id, created_at FROM addresses WHERE owner_id = $1`
+	rows, err := s.DB.QueryContext(ctx, query, req.OwnerId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "query error: %v", err)
+	}
+	defer rows.Close()
+
+	var addresses []*pb.Address
+	for rows.Next() {
+		var a model.Address
+		err := rows.Scan(&a.ID, &a.Name, &a.Desc, &a.OwnerID, &a.CreatedAt)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "scan error: %v", err)
+		}
+		addresses = append(addresses, &pb.Address{
+			Id:        uint32(a.ID),
+			Name:      a.Name,
+			Desc:      a.Desc,
+			OwnerId:   uint32(a.OwnerID),
+			CreatedAt: a.CreatedAt.Format(time.RFC3339),
+		})
 	}
 
-	var protoAddresses []*pb.Address
-	for _, addr := range addresses {
-		protoAddresses = append(protoAddresses, toProto(addr))
-	}
-
-	return &pb.ListAddressResponse{Addresses: protoAddresses}, nil
+	return &pb.ListAddressResponse{Addresses: addresses}, nil
 }
+
 
 func (s *AddressServer) UpdateAddress(ctx context.Context, req *pb.UpdateAddressRequest) (*pb.AddressResponse, error) {
-	var address model.Address
-	if err := s.DB.First(&address, req.Id).Error; err != nil {
-		return nil, err
+	query := `UPDATE addresses SET name=$1, "desc"=$2 WHERE id=$3 RETURNING id, name, "desc", owner_id, created_at`
+	row := s.DB.QueryRowContext(ctx, query, req.Name, req.Desc, req.Id)
+
+	var a model.Address
+	err := row.Scan(&a.ID, &a.Name, &a.Desc, &a.OwnerID, &a.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, status.Errorf(codes.NotFound, "address not found")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "update error: %v", err)
 	}
 
-	address.Name = req.Name
-	address.Desc = req.Desc
-
-	if err := s.DB.Save(&address).Error; err != nil {
-		return nil, err
+	event := map[string]interface{}{
+	"event_type": "address_updated",
+	"data": map[string]interface{}{
+		"id":       a.ID,
+		"name":     a.Name,
+		"desc":     a.Desc,
+		"owner_id": a.OwnerID,
+		},
 	}
 
-	return &pb.AddressResponse{Address: toProto(address)}, nil
+	s.Producer.PublishAddressUpdatedEvent(event)
+
+
+	return &pb.AddressResponse{Address: &pb.Address{
+		Id:        uint32(a.ID),
+		Name:      a.Name,
+		Desc:      a.Desc,
+		OwnerId:   uint32(a.OwnerID),
+		CreatedAt: a.CreatedAt.Format(time.RFC3339),
+	}}, nil
 }
 
+// 🟢 DELETE
 func (s *AddressServer) DeleteAddress(ctx context.Context, req *pb.DeleteAddressRequest) (*pb.DeleteAddressResponse, error) {
-	if err := s.DB.Delete(&model.Address{}, req.Id).Error; err != nil {
-		return nil, err
+	query := `DELETE FROM addresses WHERE id=$1`
+	res, err := s.DB.ExecContext(ctx, query, req.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "delete error: %v", err)
 	}
+
+	count, _ := res.RowsAffected()
+	if count == 0 {
+		return nil, status.Errorf(codes.NotFound, "address not found")
+	}
+	event := map[string]interface{}{
+	"event_type": "address_deleted",
+	"data": map[string]interface{}{
+		"id": req.Id,
+		},
+	}
+
+s.Producer.PublishAddressDeletedEvent(event)
+
 
 	return &pb.DeleteAddressResponse{Message: "Address deleted successfully"}, nil
 }
 
+// 🟢 GET ALL
 func (s *AddressServer) GetAllAddresses(ctx context.Context, _ *emptypb.Empty) (*pb.GetAllAddressesResponse, error) {
-    var addresses []model.Address
-
-    if err := s.DB.Find(&addresses).Error; err != nil {
-        return nil, err
-    }
-
-    var pbAddresses []*pb.Address
-    for _, a := range addresses {
-        pbAddresses = append(pbAddresses, &pb.Address{
-            Id:      uint32(a.ID),
-            Name:    a.Name,
-            Desc:    a.Desc,
-            OwnerId: uint32(a.OwnerID),
-        })
-    }
-
-    return &pb.GetAllAddressesResponse{Addresses: pbAddresses}, nil
-}
-
-
-
-func toProto(a model.Address) *pb.Address {
-	return &pb.Address{
-		Id:         uint32(a.ID),
-		Name:       a.Name,
-		Desc:       a.Desc,
-		OwnerId:    uint32(a.OwnerID),
-		CreatedAt:  a.CreatedAt.Format(time.RFC3339),
+	query := `SELECT id, name, "desc", owner_id, created_at FROM addresses`
+	rows, err := s.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "query error: %v", err)
 	}
+	defer rows.Close()
+
+	var addresses []*pb.Address
+	for rows.Next() {
+		var a model.Address
+		err := rows.Scan(&a.ID, &a.Name, &a.Desc, &a.OwnerID, &a.CreatedAt)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "scan error: %v", err)
+		}
+		addresses = append(addresses, &pb.Address{
+			Id:        uint32(a.ID),
+			Name:      a.Name,
+			Desc:      a.Desc,
+			OwnerId:   uint32(a.OwnerID),
+			CreatedAt: a.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	return &pb.GetAllAddressesResponse{Addresses: addresses}, nil
 }

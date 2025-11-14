@@ -18,7 +18,7 @@ func NewElasticClient(baseURL string) *ElasticClient {
 }
 
 func (es *ElasticClient) IndexAddress(address map[string]interface{}) error {
-	index := "addresses"
+	index := "address"
 	id := fmt.Sprintf("%v", address["id"])
 
 	doc, _ := json.Marshal(address)
@@ -57,11 +57,13 @@ func (es *ElasticClient) SearchAddresses(query string) ([]map[string]interface{}
 	}
 
 	body, _ := json.Marshal(searchQuery)
-	url := fmt.Sprintf("%s/addresses/_search", es.BaseURL)
+	url := fmt.Sprintf("%s/address/_search", es.BaseURL) // FIXED
+
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
