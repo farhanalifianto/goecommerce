@@ -89,7 +89,6 @@ func (h *ConsumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 		switch eventType {
 
 		case "address_created", "address_updated":
-			// Index address (Elastic hanya butuh data, bukan seluruh event)
 			if err := h.esClient.IndexAddress(data); err != nil {
 				log.Printf("❌ Failed to index: %v", err)
 			}
@@ -105,6 +104,12 @@ func (h *ConsumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 			if err := h.esClient.DeleteAddress(id); err != nil {
 				log.Printf("Failed to delete index: %v", err)
 			}
+			
+		case "user_created", "user_updated":
+			if err := h.esClient.IndexUser(data); err != nil {
+				log.Printf("E34 Failed to index user: %v", err)
+			}
+
 
 		default:
 			log.Printf("Unknown event_type: %s", eventType)
@@ -145,6 +150,8 @@ func main() {
     "address.created",
     "address.updated",
     "address.deleted",
+	"user.created",
+	"user.updated",
 	}
 
 

@@ -12,6 +12,22 @@ import (
 	"gorm.io/gorm"
 )
 
+// =============== EVENT STRUCT ===============
+
+type UserCreatedEvent struct {
+	EventType string      `json:"event_type"`
+	Data      UserPayload `json:"data"`
+}
+
+type UserPayload struct {
+	ID    uint   `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name"`
+	Role  string `json:"role"`
+}
+
+// =============== CONSUMER STARTER ===============
+
 func StartUserCreatedConsumer(db *gorm.DB) {
 	broker := os.Getenv("KAFKA_BROKER")
 	if broker == "" {
@@ -24,7 +40,7 @@ func StartUserCreatedConsumer(db *gorm.DB) {
 	var client sarama.Consumer
 	var err error
 
-	// try connect ke Kafka sampai 5 kali
+	// Retry Kafka connection
 	for i := 1; i <= 5; i++ {
 		client, err = sarama.NewConsumer([]string{broker}, config)
 		if err == nil {
@@ -40,50 +56,65 @@ func StartUserCreatedConsumer(db *gorm.DB) {
 	}
 	defer client.Close()
 
-	// 🧩 Pastikan topic "user.created" ada
+	// Open partition consumer
 	partitionConsumer, err := client.ConsumePartition("user.created", 0, sarama.OffsetNewest)
 	if err != nil {
 		log.Fatalf("Failed to start partition consumer: %v", err)
 	}
 	defer partitionConsumer.Close()
 
-	log.Println("Listening for user.created events...")
+	log.Println("📡 Listening for user.created events...")
 
+	// =============== CONSUMER LOOP ===============
 	for {
 		select {
 		case msg := <-partitionConsumer.Messages():
-			var user map[string]interface{}
-			if err := json.Unmarshal(msg.Value, &user); err != nil {
-				log.Printf("❌ Failed to parse user event: %v", err)
-				continue
-			}
-			log.Printf("📥 Received user.created event: %+v", user)
-
-			u := model.User{
-				ID:    uint(user["id"].(float64)),
-				Email: user["email"].(string),
-				Name:  user["name"].(string),
-				Role:  user["role"].(string),
-			}
-
-			// 🧠 Cek dulu apakah user sudah ada
-			var existing model.User
-			if err := db.Where("id = ?", u.ID).First(&existing).Error; err == nil {
-				log.Printf("User already exists, skipping: %v", u.Email)
-				continue
-			}
-
-			if err := db.Create(&u).Error; err != nil {
-				log.Printf("Failed to save user: %v", err)
-			} else {
-				log.Printf("User saved to database: %v", u.Email)
-			}
+			handleUserCreatedEvent(msg.Value, db)
 
 		case err := <-partitionConsumer.Errors():
 			log.Printf("Kafka consumer error: %v", err)
+
 		case <-context.Background().Done():
 			log.Println("Kafka consumer stopped.")
 			return
 		}
+	}
+}
+
+// =============== HANDLER ===============
+
+func handleUserCreatedEvent(raw []byte, db *gorm.DB) {
+	var event UserCreatedEvent
+
+	// Parse JSON
+	if err := json.Unmarshal(raw, &event); err != nil {
+		log.Printf("❌ Failed to parse event JSON: %v", err)
+		return
+	}
+
+	log.Printf("📥 Received user.created event: %+v", event)
+
+	// Extract user
+	data := event.Data
+
+	user := model.User{
+		ID:    data.ID,
+		Email: data.Email,
+		Name:  data.Name,
+		Role:  data.Role,
+	}
+
+	// Check duplicate email
+	var existing model.User
+	if err := db.Where("email = ?", user.Email).First(&existing).Error; err == nil {
+		log.Printf("⚠️ User already exists (%s), skipping.", user.Email)
+		return
+	}
+
+	// Save to DB
+	if err := db.Create(&user).Error; err != nil {
+		log.Printf("❌ Failed to save user: %v", err)
+	} else {
+		log.Printf("✅ User saved to DB: %v", user.Email)
 	}
 }

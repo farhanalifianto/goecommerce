@@ -42,7 +42,13 @@ func PublishUserCreatedEvent(user interface{}) {
 		log.Println("⚠️ Kafka producer is nil — event not sent")
 		return
 	}
-	messageBytes, err := json.Marshal(user)
+
+	event := map[string]interface{}{
+		"event_type": "user_created",
+		"data":       user,
+	}
+
+	messageBytes, err := json.Marshal(event)
 	if err != nil {
 		log.Printf("❌ Failed to marshal user event: %v", err)
 		return
@@ -53,8 +59,7 @@ func PublishUserCreatedEvent(user interface{}) {
 		Value: sarama.ByteEncoder(messageBytes),
 	}
 
-	_, _, err = Producer.SendMessage(msg)
-	if err != nil {
+	if _, _, err := Producer.SendMessage(msg); err != nil {
 		log.Printf("❌ Failed to send Kafka message: %v", err)
 	} else {
 		log.Println("📤 User created event sent to Kafka")
