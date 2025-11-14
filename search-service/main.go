@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -35,10 +36,10 @@ func connectKafka(broker string) sarama.ConsumerGroup {
 	for i := 1; i <= 10; i++ {
 		consumerGroup, err = sarama.NewConsumerGroup([]string{broker}, "search-service-group", config)
 		if err == nil {
-			log.Printf("✅ Connected to Kafka at %s", broker)
+			log.Printf(" Connected to Kafka at %s", broker)
 			return consumerGroup
 		}
-		log.Printf("⏳ Waiting for Kafka... (%d/10) Error: %v", i, err)
+		log.Printf("Waiting for Kafka... (%d/10) Error: %v", i, err)
 		time.Sleep(5 * time.Second)
 	}
 
@@ -58,24 +59,60 @@ func (h *ConsumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 	for msg := range claim.Messages() {
 		log.Printf("📨 Received message: %s", string(msg.Value))
 
+		// Parse JSON event
 		var event map[string]interface{}
 		if err := json.Unmarshal(msg.Value, &event); err != nil {
 			log.Printf("❌ Failed to parse message: %v", err)
 			continue
 		}
 
-		eventType, _ := event["event_type"].(string)
-		data, _ := event["data"].(map[string]interface{})
-		log.Printf("🔍 Event Type: %s | Data: %v", eventType, data)
+		// Pastikan ada event_type
+		eventType, ok := event["event_type"].(string)
+        if !ok {
+            log.Println("event_type missing or invalid")
+            continue
+        }
 
-		if eventType == "address_created" {
+		// Pastikan ada data
+		rawData, ok := event["data"]
+		if !ok {
+			log.Println("event.data missing")
+			continue
+		}
+
+		data, ok := rawData.(map[string]interface{})
+		if !ok {
+			log.Println("event.data invalid format")
+			continue
+		}
+
+		switch eventType {
+
+		case "address_created", "address_updated":
+			// Index address (Elastic hanya butuh data, bukan seluruh event)
 			if err := h.esClient.IndexAddress(data); err != nil {
-				log.Printf("❌ Failed to index to Elasticsearch: %v", err)
+				log.Printf("❌ Failed to index: %v", err)
 			}
+
+		case "address_deleted":
+			idValue, ok := data["id"]
+			if !ok {
+				log.Println("address_deleted missing id")
+				continue
+			}
+			id := fmt.Sprintf("%v", idValue)
+
+			if err := h.esClient.DeleteAddress(id); err != nil {
+				log.Printf("Failed to delete index: %v", err)
+			}
+
+		default:
+			log.Printf("Unknown event_type: %s", eventType)
 		}
 
 		session.MarkMessage(msg, "")
 	}
+
 	return nil
 }
 
@@ -84,8 +121,9 @@ func main() {
 	broker := getEnv("KAFKA_BROKER", "kafka:9092")
 	esHost := getEnv("ELASTICSEARCH_HOST", "http://elasticsearch:9200")
 
-	log.Println("🚀 Starting search-service...")
+	log.Println("Starting search-service...")
 	esClient := elasticsearch.NewElasticClient(esHost)
+
 
 	// --- Jalankan server HTTP ---
 	go func() {
@@ -94,7 +132,7 @@ func main() {
 		// Panggil route terpisah
 		routes.RegisterSearchRoutes(app,authWrapper, esClient)
 
-		log.Println("🌐 HTTP server running on port 3004")
+		log.Println("HTTP server running on port 3004")
 		if err := app.Listen(":3004"); err != nil {
 			log.Fatalf("❌ HTTP server error: %v", err)
 		}
@@ -105,7 +143,13 @@ func main() {
 	handler := &ConsumerHandler{esClient: esClient}
 
 	ctx := context.Background()
-	topics := []string{"address_events"}
+	topics := []string{
+    "address.created",
+    "address.updated",
+    "address.deleted",
+	}
+
+
 
 	for {
 		if err := consumerGroup.Consume(ctx, topics, handler); err != nil {

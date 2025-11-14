@@ -19,7 +19,13 @@ func NewElasticClient(baseURL string) *ElasticClient {
 
 func (es *ElasticClient) IndexAddress(address map[string]interface{}) error {
 	index := "address"
-	id := fmt.Sprintf("%v", address["id"])
+	idValue, ok := address["id"]
+	if !ok {
+		return fmt.Errorf("❌ missing id field in address")
+	}
+
+	id := fmt.Sprintf("%v", idValue)
+
 
 	doc, _ := json.Marshal(address)
 	req, err := http.NewRequestWithContext(context.Background(),
@@ -46,8 +52,26 @@ func (es *ElasticClient) IndexAddress(address map[string]interface{}) error {
 	return nil
 }
 
+func (es *ElasticClient) DeleteAddress(id string) error {
+    url := fmt.Sprintf("%s/address/_doc/%s", es.BaseURL, id)
+    req, _ := http.NewRequest("DELETE", url, nil)
+    resp, err := http.DefaultClient.Do(req)
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode >= 300 {
+        return fmt.Errorf("failed to delete document: %s", resp.Status)
+    }
+
+    log.Printf("🗑️ Deleted address %s from Elasticsearch", id)
+    return nil
+}
+
+
 func (es *ElasticClient) SearchAddresses(query string) ([]map[string]interface{}, error) {
-	searchQuery := map[string]interface{}{
+	searchBody := map[string]interface{}{
 		"query": map[string]interface{}{
 			"multi_match": map[string]interface{}{
 				"query":  query,
@@ -56,14 +80,13 @@ func (es *ElasticClient) SearchAddresses(query string) ([]map[string]interface{}
 		},
 	}
 
-	body, _ := json.Marshal(searchQuery)
-	url := fmt.Sprintf("%s/address/_search", es.BaseURL) // FIXED
+	bodyBytes, _ := json.Marshal(searchBody)
+	url := fmt.Sprintf("%s/address/_search", es.BaseURL)
 
-	req, err := http.NewRequestWithContext(context.Background(), "GET", url, bytes.NewBuffer(body))
+	req, err := http.NewRequest("GET", url, bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		return nil, err
 	}
-
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -72,24 +95,18 @@ func (es *ElasticClient) SearchAddresses(query string) ([]map[string]interface{}
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("search failed: %s", resp.Status)
-	}
-
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
-	}
+	json.NewDecoder(resp.Body).Decode(&result)
 
 	hits := []map[string]interface{}{}
-	if h, ok := result["hits"].(map[string]interface{}); ok {
-		if inner, ok := h["hits"].([]interface{}); ok {
-			for _, item := range inner {
-				src := item.(map[string]interface{})["_source"].(map[string]interface{})
-				hits = append(hits, src)
-			}
-		}
+	h := result["hits"].(map[string]interface{})["hits"].([]interface{})
+
+	for _, item := range h {
+		doc := item.(map[string]interface{})["_source"].(map[string]interface{})
+		hits = append(hits, doc)
 	}
 
 	return hits, nil
 }
+
+
