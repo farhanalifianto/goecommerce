@@ -78,7 +78,8 @@ func main() {
 		}
 	}()
 
-	go kafka.StartUserCreatedConsumer(DB)
+	consumer := kafka.NewConsumer()
+	consumer.Consume("user.created", kafka.HandleUserCreated(DB))
 
 	select {}
 }
