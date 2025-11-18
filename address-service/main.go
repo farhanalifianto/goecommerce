@@ -66,7 +66,7 @@ func main() {
 
 		routes.RegisterAddressRoutes(app, DB, middleware.AuthMiddleware())
 
-		log.Println("🌐 HTTP server running on port 3003")
+		log.Println("HTTP server running on port 3003")
 		if err := app.Listen(":3003"); err != nil {
 			log.Fatal("fiber error:", err)
 		}

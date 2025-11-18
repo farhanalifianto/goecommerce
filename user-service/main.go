@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"user-service/cache"
 	"user-service/grpc_server"
 	kafka "user-service/kafka"
 	"user-service/middleware"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -46,7 +48,7 @@ func initDB() {
 // --------------------
 func main() {
 	initDB()
-
+	cache.ConnectRedis()
 	jwtSecret := "verysecretkey"
 
 	// Jalankan HTTP (Fiber)
@@ -69,8 +71,12 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		redisAddr := os.Getenv("REDIS_ADDR")
+		rdb := redis.NewClient(&redis.Options{
+        Addr: redisAddr,
+ 	   	})
 		grpcServer := grpc.NewServer()
-		pb.RegisterUserServiceServer(grpcServer, &grpc_server.UserServer{DB: DB, JWTSecret: jwtSecret})
+		pb.RegisterUserServiceServer(grpcServer, &grpc_server.UserServer{DB: DB, JWTSecret: jwtSecret, Redis: rdb})
 
 		log.Println("gRPC running on :50051")
 		if err := grpcServer.Serve(listener); err != nil {

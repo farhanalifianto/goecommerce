@@ -82,6 +82,7 @@ services:
       - user-db
       - auth-service
       - kafka
+      - redis
     ports:
       - "3001:3001" # HTTP
       - "50051:50051" # gRPC
