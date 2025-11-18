@@ -317,6 +317,7 @@ func (x *UpdateAddressRequest) GetDesc() string {
 type DeleteAddressRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            uint32                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	OwnerId       uint32                 `protobuf:"varint,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -354,6 +355,13 @@ func (*DeleteAddressRequest) Descriptor() ([]byte, []int) {
 func (x *DeleteAddressRequest) GetId() uint32 {
 	if x != nil {
 		return x.Id
+	}
+	return 0
+}
+
+func (x *DeleteAddressRequest) GetOwnerId() uint32 {
+	if x != nil {
+		return x.OwnerId
 	}
 	return 0
 }
@@ -594,9 +602,10 @@ const file_proto_address_address_proto_rawDesc = "" +
 	"\x14UpdateAddressRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
-	"\x04desc\x18\x03 \x01(\tR\x04desc\"&\n" +
+	"\x04desc\x18\x03 \x01(\tR\x04desc\"A\n" +
 	"\x14DeleteAddressRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\rR\x02id\"=\n" +
+	"\x02id\x18\x01 \x01(\rR\x02id\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\rR\aownerId\"=\n" +
 	"\x0fAddressResponse\x12*\n" +
 	"\aaddress\x18\x01 \x01(\v2\x10.address.AddressR\aaddress\"E\n" +
 	"\x13ListAddressResponse\x12.\n" +

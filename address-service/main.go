@@ -1,11 +1,13 @@
 package main
 
 import (
+	"address-service/cache"
 	"address-service/grpc_server"
 	kafkax "address-service/kafka"
 	"address-service/middleware"
 	"address-service/model"
 	pb "address-service/proto/address"
+
 	"address-service/routes"
 	"database/sql"
 	"log"
@@ -14,13 +16,14 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 var DB *gorm.DB
-var SQLDB *sql.DB // 🟢 Tambah variabel untuk koneksi SQL murni
+var SQLDB *sql.DB 
 
 // 🟢 INIT DATABASE
 func initDB() {
@@ -54,8 +57,9 @@ func initDB() {
 func main() {
 	initDB()
 	producer := kafkax.NewProducer()
+	cache.ConnectRedis()
 
-	// 🟢 Jalankan HTTP API
+	// fiber
 	go func() {
 		app := fiber.New()
 		app.Use(logger.New())
@@ -68,17 +72,22 @@ func main() {
 		}
 	}()
 
-	// 🟢 Jalankan gRPC Server
+	// grpc
 	go func() {
 		listener, err := net.Listen("tcp", ":50052")
 		if err != nil {
 			log.Fatalf("failed to listen on port 50052: %v", err)
 		}
+		redisAddr := os.Getenv("REDIS_ADDR")
+		rdb := redis.NewClient(&redis.Options{
+        Addr: redisAddr,
+ 	   })
 
 		grpcServer := grpc.NewServer()
 		addressServer := &grpc_server.AddressServer{
 			DB:            SQLDB,
 			Producer: producer,
+			Redis: rdb,
 		}
 		pb.RegisterAddressServiceServer(grpcServer, addressServer)
 
