@@ -28,6 +28,8 @@ func RegisterProductRoutes(app *fiber.App,db *gorm.DB, authMiddleware fiber.Hand
 	// ============================
 	category := p.Group("/category")
 	category.Post("/", authMiddleware,middleware.RoleRequired("admin"), pc.CreateCategory)
+	category.Put("/:id", pc.UpdateCategory)
+	category.Delete("/:id", pc.DeleteCategory)
 	category.Get("/", pc.ListCategories)
 
 	// ============================

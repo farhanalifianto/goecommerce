@@ -183,6 +183,53 @@ func (pc *ProductController) ListCategories(c *fiber.Ctx) error {
 	return c.JSON(resp.Categories)
 }
 
+func (pc *ProductController) UpdateCategory(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid id"})
+	}
+
+	var body struct {
+		Name string `json:"name"`
+	}
+
+	if err := c.BodyParser(&body); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := pc.Client.UpdateCategory(ctx, &pb.UpdateCategoryRequest{
+		Id:   uint32(id),
+		Name: body.Name,
+	})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(resp.Category)
+}
+func (pc *ProductController) DeleteCategory(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "invalid id"})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := pc.Client.DeleteCategory(ctx, &pb.DeleteCategoryRequest{
+		Id: uint32(id),
+	})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(resp)
+}
+
+
 // ===============================
 //         STOCK
 // ===============================

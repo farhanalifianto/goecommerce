@@ -18,6 +18,8 @@ service ProductService {
   // Category
   rpc CreateCategory (CreateCategoryRequest) returns (CategoryResponse);
   rpc ListCategories (google.protobuf.Empty) returns (ListCategoriesResponse);
+  rpc DeleteCategory (DeleteCategoryRequest) returns (DeleteCategoryResponse);
+  rpc UpdateCategory (UpdateCategoryRequest) returns (CategoryResponse);
 
   // Stock
   rpc UpdateStock (UpdateStockRequest) returns (StockResponse);
@@ -109,6 +111,19 @@ message ListCategoriesResponse {
 
 message GetAllCategoryRequest{
 }
+
+message UpdateCategoryRequest{
+  uint32 id = 1;
+  string name = 2;
+}
+message DeleteCategoryRequest {
+  uint32 id = 1;
+}
+message DeleteCategoryResponse {
+  string message = 1;
+}
+
+
 
 /* =====================
         STOCK

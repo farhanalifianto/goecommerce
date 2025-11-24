@@ -43,7 +43,7 @@ func initDB() {
 		log.Fatal("failed to connect product db:", err)
 	}
 
-	// AutoMigrate models
+	// automigrate models
 	if err := DB.AutoMigrate(&model.Product{}, &model.Category{}, &model.Stock{}); err != nil {
 		log.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func main() {
 
 		grpcServer := grpc.NewServer()
 		productServer := &grpc_server.ProductServer{
-			DB:       DB,
+			DB:       SQLDB,
 			Producer: producer,
 			Redis:    rdb,
 		}

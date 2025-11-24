@@ -27,6 +27,8 @@ const (
 	ProductService_DeleteProduct_FullMethodName  = "/product.ProductService/DeleteProduct"
 	ProductService_CreateCategory_FullMethodName = "/product.ProductService/CreateCategory"
 	ProductService_ListCategories_FullMethodName = "/product.ProductService/ListCategories"
+	ProductService_DeleteCategory_FullMethodName = "/product.ProductService/DeleteCategory"
+	ProductService_UpdateCategory_FullMethodName = "/product.ProductService/UpdateCategory"
 	ProductService_UpdateStock_FullMethodName    = "/product.ProductService/UpdateStock"
 	ProductService_GetStock_FullMethodName       = "/product.ProductService/GetStock"
 )
@@ -44,6 +46,8 @@ type ProductServiceClient interface {
 	// Category
 	CreateCategory(ctx context.Context, in *CreateCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
 	ListCategories(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListCategoriesResponse, error)
+	DeleteCategory(ctx context.Context, in *DeleteCategoryRequest, opts ...grpc.CallOption) (*DeleteCategoryResponse, error)
+	UpdateCategory(ctx context.Context, in *UpdateCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error)
 	// Stock
 	UpdateStock(ctx context.Context, in *UpdateStockRequest, opts ...grpc.CallOption) (*StockResponse, error)
 	GetStock(ctx context.Context, in *GetStockRequest, opts ...grpc.CallOption) (*StockResponse, error)
@@ -127,6 +131,26 @@ func (c *productServiceClient) ListCategories(ctx context.Context, in *emptypb.E
 	return out, nil
 }
 
+func (c *productServiceClient) DeleteCategory(ctx context.Context, in *DeleteCategoryRequest, opts ...grpc.CallOption) (*DeleteCategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteCategoryResponse)
+	err := c.cc.Invoke(ctx, ProductService_DeleteCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) UpdateCategory(ctx context.Context, in *UpdateCategoryRequest, opts ...grpc.CallOption) (*CategoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CategoryResponse)
+	err := c.cc.Invoke(ctx, ProductService_UpdateCategory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) UpdateStock(ctx context.Context, in *UpdateStockRequest, opts ...grpc.CallOption) (*StockResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(StockResponse)
@@ -160,6 +184,8 @@ type ProductServiceServer interface {
 	// Category
 	CreateCategory(context.Context, *CreateCategoryRequest) (*CategoryResponse, error)
 	ListCategories(context.Context, *emptypb.Empty) (*ListCategoriesResponse, error)
+	DeleteCategory(context.Context, *DeleteCategoryRequest) (*DeleteCategoryResponse, error)
+	UpdateCategory(context.Context, *UpdateCategoryRequest) (*CategoryResponse, error)
 	// Stock
 	UpdateStock(context.Context, *UpdateStockRequest) (*StockResponse, error)
 	GetStock(context.Context, *GetStockRequest) (*StockResponse, error)
@@ -193,6 +219,12 @@ func (UnimplementedProductServiceServer) CreateCategory(context.Context, *Create
 }
 func (UnimplementedProductServiceServer) ListCategories(context.Context, *emptypb.Empty) (*ListCategoriesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListCategories not implemented")
+}
+func (UnimplementedProductServiceServer) DeleteCategory(context.Context, *DeleteCategoryRequest) (*DeleteCategoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteCategory not implemented")
+}
+func (UnimplementedProductServiceServer) UpdateCategory(context.Context, *UpdateCategoryRequest) (*CategoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateCategory not implemented")
 }
 func (UnimplementedProductServiceServer) UpdateStock(context.Context, *UpdateStockRequest) (*StockResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateStock not implemented")
@@ -347,6 +379,42 @@ func _ProductService_ListCategories_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_DeleteCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).DeleteCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_DeleteCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).DeleteCategory(ctx, req.(*DeleteCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_UpdateCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateCategoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).UpdateCategory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_UpdateCategory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).UpdateCategory(ctx, req.(*UpdateCategoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_UpdateStock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateStockRequest)
 	if err := dec(in); err != nil {
@@ -417,6 +485,14 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListCategories",
 			Handler:    _ProductService_ListCategories_Handler,
+		},
+		{
+			MethodName: "DeleteCategory",
+			Handler:    _ProductService_DeleteCategory_Handler,
+		},
+		{
+			MethodName: "UpdateCategory",
+			Handler:    _ProductService_UpdateCategory_Handler,
 		},
 		{
 			MethodName: "UpdateStock",

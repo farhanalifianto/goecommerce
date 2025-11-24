@@ -2,6 +2,7 @@ package grpc_server
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -14,287 +15,414 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-
-	"gorm.io/gorm"
 )
 
-// ProductServer implements pb.ProductServiceServer
 type ProductServer struct {
 	pb.UnimplementedProductServiceServer
-	DB       *gorm.DB
+	DB       *sql.DB
 	Producer *kafka.Producer
 	Redis    *redis.Client
 }
 
-// helper: format product model -> proto Product
+// ====================== HELPER ======================
+
 func toProtoProduct(p *model.Product) *pb.Product {
 	if p == nil {
 		return nil
 	}
-	var catID uint32 = uint32(p.CategoryID)
 	return &pb.Product{
 		Id:         uint32(p.ID),
 		Name:       p.Name,
 		Desc:       p.Desc,
 		Price:      uint32(p.Price),
-		CategoryId: catID,
+		CategoryId: uint32(p.CategoryID),
 		CreatedAt:  p.CreatedAt.Format(time.RFC3339),
 	}
 }
 
-// ===================== PRODUCT CRUD =====================
+// product
 
-// CreateProduct : create + clear relevant cache + publish event
+// CREATE
 func (s *ProductServer) CreateProduct(ctx context.Context, req *pb.CreateProductRequest) (*pb.ProductResponse, error) {
-	p := model.Product{
-		Name:       req.Name,
-		Desc:       req.Desc,
-		Price:      uint(req.Price),
-		CategoryID: uint(req.CategoryId),
+	query := `
+	INSERT INTO products (name, "desc", price, category_id, created_at)
+	VALUES ($1, $2, $3, $4, NOW())
+	RETURNING id, name, "desc", price, category_id, created_at
+	`
+
+	var p model.Product
+	err := s.DB.QueryRowContext(
+		ctx, query,
+		req.Name, req.Desc, req.Price, req.CategoryId,
+	).Scan(&p.ID, &p.Name, &p.Desc, &p.Price, &p.CategoryID, &p.CreatedAt)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to insert: %v", err)
 	}
 
-	if err := s.DB.Create(&p).Error; err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create product: %v", err)
-	}
-
-	// clear list caches
-	if s.Redis != nil {
-		// remove list caches: all and per-category
-		_ = s.Redis.Del(ctx, "products:all").Err()
-		_ = s.Redis.Del(ctx, fmt.Sprintf("products:category:%d", p.CategoryID)).Err()
-	}
+	// clear cache
+	s.Redis.Del(ctx, "products:all")
+	s.Redis.Del(ctx, fmt.Sprintf("products:category:%d", p.CategoryID))
 
 	// publish event
-	if s.Producer != nil {
-		event := map[string]interface{}{
-			"event_type": "product_created",
-			"data": map[string]interface{}{
-				"id":          p.ID,
-				"name":        p.Name,
-				"desc":        p.Desc,
-				"price":       p.Price,
-				"category_id": p.CategoryID,
-			},
-		}
-		s.Producer.PublishProductCreatedEvent(event)
+	event := map[string]interface{}{
+		"event_type": "product_created",
+		"data": map[string]interface{}{
+			"id":          p.ID,
+			"name":        p.Name,
+			"desc":        p.Desc,
+			"price":       p.Price,
+			"category_id": p.CategoryID,
+		},
 	}
+	s.Producer.PublishProductCreatedEvent(event)
 
 	return &pb.ProductResponse{Product: toProtoProduct(&p)}, nil
 }
 
-// GetProduct: return single product by id
+// GET SINGLE
 func (s *ProductServer) GetProduct(ctx context.Context, req *pb.GetProductRequest) (*pb.ProductResponse, error) {
+	query := `
+	SELECT id, name, "desc", price, category_id, created_at
+	FROM products WHERE id = $1
+	`
+
 	var p model.Product
-	if err := s.DB.First(&p, req.Id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, status.Errorf(codes.NotFound, "product not found")
-		}
-		return nil, status.Errorf(codes.Internal, "db error: %v", err)
+	err := s.DB.QueryRowContext(ctx, query, req.Id).
+		Scan(&p.ID, &p.Name, &p.Desc, &p.Price, &p.CategoryID, &p.CreatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, status.Errorf(codes.NotFound, "product not found")
 	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "query error: %v", err)
+	}
+
 	return &pb.ProductResponse{Product: toProtoProduct(&p)}, nil
 }
 
-// ListProducts: optional caching (all products)
+// LIST (with Redis cache)
 func (s *ProductServer) ListProducts(ctx context.Context, _ *emptypb.Empty) (*pb.ListProductsResponse, error) {
-	// note: proto used google.protobuf.Empty; adjust signature if necessary
-	// Cache key "products:all"
-	var products []*model.Product
+	cacheKey := "products:all"
 
-	// Try Redis
-	if s.Redis != nil {
-		if val, err := s.Redis.Get(ctx, "products:all").Result(); err == nil {
-			// Unmarshal into []model.Product
-			if err := json.Unmarshal([]byte(val), &products); err == nil {
-				// convert to proto
-				out := &pb.ListProductsResponse{}
-				for _, p := range products {
-					out.Products = append(out.Products, toProtoProduct(p))
-				}
-				return out, nil
-			}
-			// if unmarshal failed, fallthrough to DB
+	// 1. Try Redis
+	if cached, err := s.Redis.Get(ctx, cacheKey).Result(); err == nil {
+		fmt.Println("🔥 Product Cache HIT")
+
+		var products []*model.Product
+		json.Unmarshal([]byte(cached), &products)
+
+		resp := &pb.ListProductsResponse{}
+		for _, p := range products {
+			resp.Products = append(resp.Products, toProtoProduct(p))
 		}
+		return resp, nil
 	}
 
-	// Query DB
-	if err := s.DB.Find(&products).Error; err != nil {
-		return nil, status.Errorf(codes.Internal, "db query failed: %v", err)
+	// 2. Query DB
+	query := `
+	SELECT id, name, "desc", price, category_id, created_at
+	FROM products
+	`
+
+	rows, err := s.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "query error: %v", err)
+	}
+	defer rows.Close()
+
+	var products []*model.Product
+	for rows.Next() {
+		var p model.Product
+		if err := rows.Scan(&p.ID, &p.Name, &p.Desc, &p.Price, &p.CategoryID, &p.CreatedAt); err != nil {
+			return nil, status.Errorf(codes.Internal, "scan error: %v", err)
+		}
+		products = append(products, &p)
 	}
 
-	// Save to Redis
-	if s.Redis != nil {
-		b, _ := json.Marshal(products)
-		_ = s.Redis.Set(ctx, "products:all", b, 5*time.Minute).Err()
-	}
+	// save to Redis
+	b, _ := json.Marshal(products)
+	s.Redis.Set(ctx, cacheKey, b, 5*time.Minute)
 
-	out := &pb.ListProductsResponse{}
+	resp := &pb.ListProductsResponse{}
 	for _, p := range products {
-		out.Products = append(out.Products, toProtoProduct(p))
+		resp.Products = append(resp.Products, toProtoProduct(p))
 	}
-	return out, nil
+	return resp, nil
 }
 
-// UpdateProduct: update, clear caches, publish event
+// UPDATE
 func (s *ProductServer) UpdateProduct(ctx context.Context, req *pb.UpdateProductRequest) (*pb.ProductResponse, error) {
+	query := `
+	UPDATE products 
+	SET name=$1, "desc"=$2, price=$3, category_id=$4
+	WHERE id=$5
+	RETURNING id, name, "desc", price, category_id, created_at
+	`
+
 	var p model.Product
-	if err := s.DB.First(&p, req.Id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, status.Errorf(codes.NotFound, "product not found")
-		}
-		return nil, status.Errorf(codes.Internal, "db error: %v", err)
+	err := s.DB.QueryRowContext(
+		ctx, query,
+		req.Name, req.Desc, req.Price, req.CategoryId, req.Id,
+	).Scan(&p.ID, &p.Name, &p.Desc, &p.Price, &p.CategoryID, &p.CreatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, status.Errorf(codes.NotFound, "product not found")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "update error: %v", err)
 	}
 
-	// update fields
-	p.Name = req.Name
-	p.Desc = req.Desc
-	p.Price = uint(req.Price)
-	p.CategoryID = uint(req.CategoryId)
-
-	if err := s.DB.Save(&p).Error; err != nil {
-		return nil, status.Errorf(codes.Internal, "update failed: %v", err)
-	}
-
-	// clear caches
-	if s.Redis != nil {
-		_ = s.Redis.Del(ctx, "products:all").Err()
-		_ = s.Redis.Del(ctx, fmt.Sprintf("products:category:%d", p.CategoryID)).Err()
-	}
+	// clear cache
+	s.Redis.Del(ctx, "products:all")
+	s.Redis.Del(ctx, fmt.Sprintf("products:category:%d", p.CategoryID))
 
 	// publish event
-	if s.Producer != nil {
-		event := map[string]interface{}{
-			"event_type": "product_updated",
-			"data": map[string]interface{}{
-				"id":          p.ID,
-				"name":        p.Name,
-				"desc":        p.Desc,
-				"price":       p.Price,
-				"category_id": p.CategoryID,
-			},
-		}
-		s.Producer.PublishProductUpdatedEvent(event)
+	event := map[string]interface{}{
+		"event_type": "product_updated",
+		"data": map[string]interface{}{
+			"id":          p.ID,
+			"name":        p.Name,
+			"desc":        p.Desc,
+			"price":       p.Price,
+			"category_id": p.CategoryID,
+		},
 	}
+	s.Producer.PublishProductUpdatedEvent(event)
 
 	return &pb.ProductResponse{Product: toProtoProduct(&p)}, nil
 }
 
-// DeleteProduct: delete, clear caches, publish event
+// DELETE
 func (s *ProductServer) DeleteProduct(ctx context.Context, req *pb.DeleteProductRequest) (*pb.DeleteProductResponse, error) {
-	var p model.Product
-	if err := s.DB.First(&p, req.Id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, status.Errorf(codes.NotFound, "product not found")
-		}
-		return nil, status.Errorf(codes.Internal, "db error: %v", err)
+	// 1. Check existing product
+	var categoryID uint32
+	err := s.DB.QueryRowContext(
+		ctx, `SELECT category_id FROM products WHERE id=$1`, req.Id,
+	).Scan(&categoryID)
+
+	if err == sql.ErrNoRows {
+		return nil, status.Errorf(codes.NotFound, "product not found")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "query error: %v", err)
 	}
 
-	if err := s.DB.Delete(&model.Product{}, req.Id).Error; err != nil {
-		return nil, status.Errorf(codes.Internal, "delete failed: %v", err)
+	// 2. Delete
+	_, err = s.DB.ExecContext(ctx, `DELETE FROM products WHERE id=$1`, req.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "delete error: %v", err)
 	}
 
-	// clear caches
-	if s.Redis != nil {
-		_ = s.Redis.Del(ctx, "products:all").Err()
-		_ = s.Redis.Del(ctx, fmt.Sprintf("products:category:%d", p.CategoryID)).Err()
-	}
+	// 3. Clear cache
+	s.Redis.Del(ctx, "products:all")
+	s.Redis.Del(ctx, fmt.Sprintf("products:category:%d", categoryID))
 
-	// publish event
-	if s.Producer != nil {
-		event := map[string]interface{}{
-			"event_type": "product_deleted",
-			"data": map[string]interface{}{
-				"id": p.ID,
-			},
-		}
-		s.Producer.PublishProductDeletedEvent(event)
+	// 4. Publish event
+	event := map[string]interface{}{
+		"event_type": "product_deleted",
+		"data": map[string]interface{}{
+			"id": req.Id,
+		},
 	}
+	s.Producer.PublishProductDeletedEvent(event)
 
 	return &pb.DeleteProductResponse{Message: "Product deleted successfully"}, nil
 }
 
-// ===================== CATEGORY =====================
+// ====================== CATEGORY ======================
 
 func (s *ProductServer) CreateCategory(ctx context.Context, req *pb.CreateCategoryRequest) (*pb.CategoryResponse, error) {
-	c := model.Category{
-		Name: req.Name,
+	query := `
+	INSERT INTO categories (name) VALUES ($1)
+	RETURNING id, name
+	`
+
+	var c model.Category
+	err := s.DB.QueryRowContext(ctx, query, req.Name).
+		Scan(&c.ID, &c.Name)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to insert: %v", err)
 	}
-	if err := s.DB.Create(&c).Error; err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create category: %v", err)
-	}
-	// optional: clear any category-list cache if you have one
-	return &pb.CategoryResponse{Category: &pb.Category{
-		Id:   uint32(c.ID),
-		Name: c.Name,
-	}}, nil
+
+	return &pb.CategoryResponse{
+		Category: &pb.Category{
+			Id:   uint32(c.ID),
+			Name: c.Name,
+		},
+	}, nil
 }
 
 func (s *ProductServer) ListCategories(ctx context.Context, _ *emptypb.Empty) (*pb.ListCategoriesResponse, error) {
-	var cats []model.Category
-	if err := s.DB.Find(&cats).Error; err != nil {
-		return nil, status.Errorf(codes.Internal, "db error: %v", err)
+	query := `
+	SELECT id, name FROM categories
+	`
+
+	rows, err := s.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "query error: %v", err)
 	}
-	out := &pb.ListCategoriesResponse{}
-	for _, c := range cats {
-		out.Categories = append(out.Categories, &pb.Category{
+	defer rows.Close()
+
+	resp := &pb.ListCategoriesResponse{}
+	for rows.Next() {
+		var c model.Category
+		if err := rows.Scan(&c.ID, &c.Name); err != nil {
+			return nil, status.Errorf(codes.Internal, "scan error: %v", err)
+		}
+		resp.Categories = append(resp.Categories, &pb.Category{
 			Id:   uint32(c.ID),
 			Name: c.Name,
 		})
 	}
-	return out, nil
+
+	return resp, nil
+}
+func (s *ProductServer) UpdateCategory(ctx context.Context, req *pb.UpdateCategoryRequest) (*pb.CategoryResponse, error) {
+	query := `
+	UPDATE categories 
+	SET name = $1
+	WHERE id = $2
+	RETURNING id, name
+	`
+
+	var c model.Category
+	err := s.DB.QueryRowContext(
+		ctx, query,
+		req.Name, req.Id,
+	).Scan(&c.ID, &c.Name)
+
+	if err == sql.ErrNoRows {
+		return nil, status.Errorf(codes.NotFound, "category not found")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "update error: %v", err)
+	}
+
+	return &pb.CategoryResponse{
+		Category: &pb.Category{
+			Id:   uint32(c.ID),
+			Name: c.Name,
+		},
+	}, nil
+}
+func (s *ProductServer) DeleteCategory(ctx context.Context, req *pb.DeleteCategoryRequest) (*pb.DeleteCategoryResponse, error) {
+	// 1. Check if category exists
+	var exists bool
+	err := s.DB.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM categories WHERE id=$1)`,
+		req.Id,
+	).Scan(&exists)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "db error: %v", err)
+	}
+	if !exists {
+		return nil, status.Errorf(codes.NotFound, "category not found")
+	}
+
+	// 2. Check if category used by products
+	var used bool
+	err = s.DB.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM products WHERE category_id=$1)`,
+		req.Id,
+	).Scan(&used)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "db error: %v", err)
+	}
+	if used {
+		return nil, status.Errorf(codes.FailedPrecondition, "category in use by products")
+	}
+
+	// 3. Delete
+	_, err = s.DB.ExecContext(ctx,
+		`DELETE FROM categories WHERE id=$1`,
+		req.Id,
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "delete error: %v", err)
+	}
+
+	return &pb.DeleteCategoryResponse{
+		Message: "Category deleted successfully",
+	}, nil
 }
 
-// ===================== STOCK =====================
+
+// ====================== STOCK ======================
 
 func (s *ProductServer) UpdateStock(ctx context.Context, req *pb.UpdateStockRequest) (*pb.StockResponse, error) {
-	// Try find existing stock row
-	var st model.Stock
-	err := s.DB.Where("product_id = ?", req.ProductId).First(&st).Error
+	var exists bool
+	err := s.DB.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM stocks WHERE product_id=$1)`,
+		req.ProductId,
+	).Scan(&exists)
+
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			// create new
-			st = model.Stock{
-				ProductID: uint(req.ProductId),
-				Quantity:  int(req.Quantity),
-			}
-			if err := s.DB.Create(&st).Error; err != nil {
-				return nil, status.Errorf(codes.Internal, "failed to create stock: %v", err)
-			}
-		} else {
-			return nil, status.Errorf(codes.Internal, "db error: %v", err)
-		}
+		return nil, status.Errorf(codes.Internal, "db error: %v", err)
+	}
+
+	var st model.Stock
+
+	if !exists {
+		// INSERT
+		query := `
+		INSERT INTO stocks (product_id, quantity, updated_at)
+		VALUES ($1, $2, NOW())
+		RETURNING id, product_id, quantity, updated_at
+		`
+		err = s.DB.QueryRowContext(ctx, query, req.ProductId, req.Quantity).
+			Scan(&st.ID, &st.ProductID, &st.Quantity, &st.UpdatedAt)
 	} else {
-		// update existing
-		st.Quantity = int(req.Quantity)
-		if err := s.DB.Save(&st).Error; err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to update stock: %v", err)
-		}
+		// UPDATE
+		query := `
+		UPDATE stocks SET quantity=$1, updated_at=NOW()
+		WHERE product_id=$2
+		RETURNING id, product_id, quantity, updated_at
+		`
+		err = s.DB.QueryRowContext(ctx, query, req.Quantity, req.ProductId).
+			Scan(&st.ID, &st.ProductID, &st.Quantity, &st.UpdatedAt)
 	}
 
-	// optional: cache invalidation for product details
-	if s.Redis != nil {
-		_ = s.Redis.Del(ctx, fmt.Sprintf("product:%d", req.ProductId)).Err()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "stock update error: %v", err)
 	}
 
-	return &pb.StockResponse{Stock: &pb.Stock{
-		Id:        uint32(st.ID),
-		ProductId: uint32(st.ProductID),
-		Quantity:  int32(st.Quantity),
-		UpdatedAt: st.UpdatedAt.Format(time.RFC3339),
-	}}, nil
+	return &pb.StockResponse{
+		Stock: &pb.Stock{
+			Id:        uint32(st.ID),
+			ProductId: uint32(st.ProductID),
+			Quantity:  int32(st.Quantity),
+			UpdatedAt: st.UpdatedAt.Format(time.RFC3339),
+		},
+	}, nil
 }
 
 func (s *ProductServer) GetStock(ctx context.Context, req *pb.GetStockRequest) (*pb.StockResponse, error) {
+	query := `
+	SELECT id, product_id, quantity, updated_at
+	FROM stocks WHERE product_id=$1
+	`
+
 	var st model.Stock
-	if err := s.DB.Where("product_id = ?", req.ProductId).First(&st).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, status.Errorf(codes.NotFound, "stock not found")
-		}
+	err := s.DB.QueryRowContext(ctx, query, req.ProductId).
+		Scan(&st.ID, &st.ProductID, &st.Quantity, &st.UpdatedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, status.Errorf(codes.NotFound, "stock not found")
+	}
+	if err != nil {
 		return nil, status.Errorf(codes.Internal, "db error: %v", err)
 	}
-	return &pb.StockResponse{Stock: &pb.Stock{
-		Id:        uint32(st.ID),
-		ProductId: uint32(st.ProductID),
-		Quantity:  int32(st.Quantity),
-		UpdatedAt: st.UpdatedAt.Format(time.RFC3339),
-	}}, nil
+
+	return &pb.StockResponse{
+		Stock: &pb.Stock{
+			Id:        uint32(st.ID),
+			ProductId: uint32(st.ProductID),
+			Quantity:  int32(st.Quantity),
+			UpdatedAt: st.UpdatedAt.Format(time.RFC3339),
+		},
+	}, nil
 }
