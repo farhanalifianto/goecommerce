@@ -1,43 +1,20 @@
 port
 
 user-service = 3001
-product-service = 3002
+auth-service = 3002
 address-service = 3003
-cart-service =  3004
-wishlist-service = 3005
-transaction-service = 3006
+search-service = 3004
+product-service = 3005
 
 db
 
 user-db = 5433
-product-db = 5434
+auth-db = 5434
 address-db = 5435
-cart-db = 5436
-wishlist-db = 5437
-transaction-db = 5438
+product-db = 5436
 
-dev status
-
-product = wait grpc
-user = wait grpc
-address = wait grpc
-cart = model clear
-wishlist = model
-transaction = wait grpc
-
-grpc port
-user = 50001
-
-protoc --go_out=. --go-grpc_out=. proto/address/address.proto
-protoc --go_out=. --go-grpc_out=. proto/user/user.proto
-protoc --go_out=. --go-grpc_out=. proto/product/product.proto
-protoc --go_out=. --go-grpc_out=. proto/auth/auth.proto
-
-
-progress project
-user-service = grpc
-product-service = 3002
-address-service = grpc_done
-cart-service =  grpc
-wishlist-service = grpc
-transaction-service = wait for all
+grpc
+user-service = 50051
+auth-service = 50052
+address-service = 50053
+product-service = 50054

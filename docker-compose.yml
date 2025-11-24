@@ -44,6 +44,20 @@ services:
     networks:
       - app-network
 
+  product-db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: productdb
+    volumes:
+      - product-db-data:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+    networks:
+      - app-network
+
   # --- Services ---
   auth-service:
     build: ./auth-service
@@ -125,6 +139,29 @@ services:
     networks:
       - app-network
 
+  product-service:
+    build: ./product-service
+    container_name: product-service
+    environment:
+      - DB_HOST=product-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASS=postgres
+      - DB_NAME=productdb
+      - USER_SERVICE_URL=http://user-service:3001
+      - KAFKA_BROKER=kafka:9092
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - product-db
+      - user-service
+      - kafka
+      - redis
+    ports:
+      - "3005:3005"
+      - "50054:50054"
+    networks:
+      - app-network
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.7.1
     container_name: zookeeper
@@ -190,6 +227,7 @@ services:
       - address-service
       - auth-service
       - search-service
+      - product-service
     networks:
       - app-network
 
@@ -198,6 +236,7 @@ volumes:
   user-db-data:
   address-db-data:
   auth-db-data:
+  product-db-data:
 
 # --- Network ---
 networks:
