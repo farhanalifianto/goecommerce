@@ -14,7 +14,7 @@ type Producer struct {
 }
 
 func NewProducer() *Producer {
-broker := os.Getenv("KAFKA_BROKER")
+	broker := os.Getenv("KAFKA_BROKER")
 	if broker == "" {
 		broker = "kafka:9092"
 	}
@@ -26,10 +26,11 @@ broker := os.Getenv("KAFKA_BROKER")
 	var producer sarama.SyncProducer
 	var err error
 
+	
 	for i := 1; i <= 10; i++ {
 		producer, err = sarama.NewSyncProducer([]string{broker}, config)
 		if err == nil {
-			log.Println("Kafka producer initialized for address-service")
+			log.Println("Kafka producer initialized for cart-service")
 			return &Producer{producer: producer}
 		}
 
@@ -37,68 +38,70 @@ broker := os.Getenv("KAFKA_BROKER")
 		time.Sleep(5 * time.Second)
 	}
 
-	log.Fatalf("❌ Failed to start Kafka producer after retries: %v", err)
+	log.Fatalf(" Failed to start Kafka producer after retries: %v", err)
 	return nil
 }
 
-func (p *Producer) PublishAddressCreatedEvent(event interface{}) {
+
+func (p *Producer) PublishCartPaidEvent(event interface{}) {
 	data, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("❌ Failed to marshal event: %v", err)
+		log.Printf("Failed to marshal cart.paid event: %v", err)
 		return
 	}
 
 	msg := &sarama.ProducerMessage{
-		Topic: "address.created",
+		Topic: "cart.paid",
 		Value: sarama.ByteEncoder(data),
 	}
 
 	_, _, err = p.producer.SendMessage(msg)
 	if err != nil {
-		log.Printf("Failed to send Kafka message: %v", err)
+		log.Printf("Failed to send cart.paid Kafka message: %v", err)
 		return
 	}
 
-	log.Printf("📤 Published address.created event: %v", string(data))
-}
-func (p *Producer) PublishAddressUpdatedEvent(event interface{}) {
-	data, err := json.Marshal(event)
-	if err != nil {
-		log.Printf("Failed to marshal event: %v", err)
-		return
-	}
-
-	msg := &sarama.ProducerMessage{
-		Topic: "address.updated",
-		Value: sarama.ByteEncoder(data),
-	}
-
-	_, _, err = p.producer.SendMessage(msg)
-	if err != nil {
-		log.Printf("Failed to send Kafka message: %v", err)
-		return
-	}
-
-	log.Printf("Published address.updated event: %v", string(data))
+	log.Printf("📤 Published cart.paid event: %v", string(data))
 }
 
-func (p *Producer) PublishAddressDeletedEvent(event interface{}) {
+func (p *Producer) PublishCartItemAddedEvent(event interface{}) {
 	data, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("Failed to marshal event: %v", err)
+		log.Printf("Failed to marshal cart.item.added: %v", err)
 		return
 	}
 
 	msg := &sarama.ProducerMessage{
-		Topic: "address.deleted",
+		Topic: "cart.item.added",
 		Value: sarama.ByteEncoder(data),
 	}
 
 	_, _, err = p.producer.SendMessage(msg)
 	if err != nil {
-		log.Printf("Failed to send Kafka message: %v", err)
+		log.Printf("Failed to send cart.item.added Kafka message: %v", err)
 		return
 	}
 
-	log.Printf("Published address.deleted event: %v", string(data))
+	log.Printf("Published cart.item.added event: %v", string(data))
+}
+
+func (p *Producer) PublishCartItemRemovedEvent(event interface{}) {
+	data, err := json.Marshal(event)
+	if err != nil {
+		log.Printf(" Failed to marshal cart.item.removed: %v", err)
+		return
+	}
+
+	msg := &sarama.ProducerMessage{
+		Topic: "cart.item.removed",
+		Value: sarama.ByteEncoder(data),
+	}
+
+	_, _, err = p.producer.SendMessage(msg)
+	if err != nil {
+		log.Printf("❌ Failed to send cart.item.removed Kafka message: %v", err)
+		return
+	}
+
+	log.Printf("Published cart.item.removed event: %v", string(data))
 }
