@@ -14,27 +14,22 @@ func RegisterProductRoutes(app *fiber.App,db *gorm.DB, authMiddleware fiber.Hand
 	api := app.Group("/api")
 	p := api.Group("/products")
 
-	// ============================
-	//        PRODUCTS
-	// ============================
+
+	//products
 	p.Get("/", pc.ListProducts)
 	p.Post("/", authMiddleware,middleware.RoleRequired("admin"), pc.CreateProduct)
 	p.Get("/:id", pc.GetProduct)
 	p.Put("/:id", authMiddleware,middleware.RoleRequired("admin"), pc.UpdateProduct)
 	p.Delete("/:id",authMiddleware,middleware.RoleRequired("admin"), pc.DeleteProduct)
 
-	// ============================
-	//        CATEGORY
-	// ============================
+	//categories
 	category := p.Group("/category")
 	category.Post("/", authMiddleware,middleware.RoleRequired("admin"), pc.CreateCategory)
 	category.Put("/:id", pc.UpdateCategory)
 	category.Delete("/:id", pc.DeleteCategory)
 	category.Get("/", pc.ListCategories)
 
-	// ============================
-	//        STOCK
-	// ============================
+	//stock
 	stock := p.Group("/stock")
 	stock.Get("/:product_id", authMiddleware,middleware.RoleRequired("admin"), pc.GetStock)
 	stock.Put("/", authMiddleware, pc.UpdateStock)
