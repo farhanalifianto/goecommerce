@@ -1,18 +1,18 @@
 package main
 
 import (
-	"address-service/cache"
-	"address-service/grpc_server"
-	kafkax "address-service/kafka"
-	"address-service/middleware"
-	"address-service/model"
-	pb "address-service/proto/address"
+	"transaction-service/cache"
+	"transaction-service/grpc_server"
+	kafkax "transaction-service/kafka"
+	"transaction-service/middleware"
+	"transaction-service/model"
+	pb "transaction-service/proto/transaction"
 
-	"address-service/routes"
 	"database/sql"
 	"log"
 	"net"
 	"os"
+	"transaction-service/routes"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -41,7 +41,7 @@ func initDB() {
 	}
 
 	// AutoMigrate untuk jaga-jaga tabel ada
-	if err := DB.AutoMigrate(&model.Address{}); err != nil {
+	if err := DB.AutoMigrate(&model.Transaction{}); err != nil {
 		log.Fatal(err)
 	}
 
@@ -64,19 +64,19 @@ func main() {
 		app := fiber.New()
 		app.Use(logger.New())
 
-		routes.RegisterAddressRoutes(app, DB, middleware.AuthMiddleware())
+		routes.RegisterTransactionRoutes(app, DB, middleware.AuthMiddleware())
 
-		log.Println("HTTP server running on port 3003")
-		if err := app.Listen(":3003"); err != nil {
+		log.Println("HTTP server running on port 3007")
+		if err := app.Listen(":3007"); err != nil {
 			log.Fatal("fiber error:", err)
 		}
 	}()
 
 	// grpc
 	go func() {
-		listener, err := net.Listen("tcp", ":50053")
+		listener, err := net.Listen("tcp", ":50056")
 		if err != nil {
-			log.Fatalf("failed to listen on port 50053: %v", err)
+			log.Fatalf("failed to listen on port 50056: %v", err)
 		}
 		redisAddr := os.Getenv("REDIS_ADDR")
 		rdb := redis.NewClient(&redis.Options{
@@ -84,14 +84,11 @@ func main() {
  	   })
 
 		grpcServer := grpc.NewServer()
-		addressServer := &grpc_server.AddressServer{
-			DB:            SQLDB,
-			Producer: producer,
-			Redis: rdb,
-		}
-		pb.RegisterAddressServiceServer(grpcServer, addressServer)
+		TransactionServer := grpc_server.NewTransactionServer(SQLDB, producer, rdb)
+		pb.RegisterTransactionServiceServer(grpcServer, TransactionServer)
 
-		log.Println("gRPC server running on port 50053")
+
+		log.Println("gRPC server running on port 50052")
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("failed to serve gRPC: %v", err)
 		}

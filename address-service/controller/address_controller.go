@@ -219,7 +219,7 @@ func (ac *AddressController) GetAllAddresses(c *fiber.Ctx) error {
     return c.JSON(out)
 }
 func NewAddressController() *AddressController {
-	addrConn, err := grpc.Dial("localhost:50052", grpc.WithInsecure())
+	addrConn, err := grpc.Dial("localhost:50053", grpc.WithInsecure())
 	if err != nil {
 		panic("failed to connect to address gRPC: " + err.Error())
 	}

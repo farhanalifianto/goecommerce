@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package cart;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "proto/cart/";
+
+
+service CartService {
+  rpc CreateCart (CreateCartRequest) returns (CartResponse);
+  rpc GetCart (GetCartRequest) returns (CartResponse);
+  rpc ListCarts (ListCartRequest) returns (ListCartResponse);
+  rpc UpdateCart (UpdateCartRequest) returns (CartResponse);
+  rpc DeleteCart (DeleteCartRequest) returns (DeleteCartResponse);
+  rpc GetAllCarts (google.protobuf.Empty) returns (GetAllCartsResponse);
+
+  rpc AddToCart (AddToCartRequest) returns (CartResponse);
+  rpc UpdateProductQty (UpdateProductQtyRequest) returns (CartResponse);
+  rpc RemoveProductFromCart (RemoveProductRequest) returns (CartResponse);
+
+  rpc CheckoutCart (CheckoutRequest) returns (CartResponse);
+}
+
+message Cart {
+  uint32 id = 1;
+  uint32 owner_id = 2;
+  repeated CartProduct products = 3;
+  string status = 4;          // "active" | "paid"
+  string created_at = 5;
+}
+
+message CartProduct {
+  uint32 id = 1;
+  uint32 qty = 2;
+}
+
+message CreateCartRequest {
+  uint32 owner_id = 1;
+  repeated CartProduct products = 2;
+}
+
+message GetCartRequest {
+  uint32 id = 1;
+  uint32 owner_id = 2;
+}
+
+message ListCartRequest {
+  uint32 owner_id = 1;
+}
+
+message UpdateCartRequest {
+  uint32 id = 1;
+  repeated CartProduct products = 2;
+  string status = 3;
+}
+
+message DeleteCartRequest {
+  uint32 id = 1;
+  uint32 owner_id = 2;
+}
+
+message CartResponse {
+  Cart cart = 1;
+}
+
+message ListCartResponse {
+  repeated Cart carts = 1;
+}
+
+message DeleteCartResponse {
+  string message = 1;
+}
+
+message GetAllCartsResponse {
+  repeated Cart carts = 1;
+}
+
+message AddToCartRequest {
+  uint32 owner_id = 1;        
+  uint32 product_id = 2;
+  uint32 qty = 3;
+}
+
+message UpdateProductQtyRequest {
+  uint32 owner_id = 1;
+  uint32 product_id = 2;
+  uint32 qty = 3;             //  qty == 0 → hdelete
+}
+
+message RemoveProductRequest {
+  uint32 owner_id = 1;
+  uint32 product_id = 2;
+}
+
+message CheckoutRequest {
+  uint32 owner_id = 1;
+}

@@ -72,6 +72,20 @@ services:
     networks:
       - app-network
 
+  transaction-db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: transactiondb
+    volumes:
+      - transaction-db-data:/var/lib/postgresql/data
+    ports:
+      - "5438:5432"
+    networks:
+      - app-network
+
   # --- Services ---
   auth-service:
     build: ./auth-service
@@ -175,6 +189,7 @@ services:
       - "50054:50054"
     networks:
       - app-network
+
   cart-service:
     build: ./cart-service
     container_name: cart-service
@@ -196,6 +211,32 @@ services:
     ports:
       - "3006:3006"
       - "50055:50055"
+    networks:
+      - app-network
+
+  transaction-service:
+    build: ./transaction-service
+    container_name: transaction-service
+    environment:
+      - DB_HOST=transaction-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASS=postgres
+      - DB_NAME=transactiondb
+      - USER_SERVICE_URL=http://user-service:3001
+      - KAFKA_BROKER=kafka:9092
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - user-service
+      - transaction-db
+      - product-service
+      - address-service
+      - cart-service
+      - kafka
+      - redis
+    ports:
+      - "3007:3007"
+      - "50056:50056"
     networks:
       - app-network
   zookeeper:
@@ -264,6 +305,8 @@ services:
       - auth-service
       - search-service
       - product-service
+      - cart-service
+      - transaction-service
     networks:
       - app-network
 
@@ -274,6 +317,7 @@ volumes:
   auth-db-data:
   product-db-data:
   cart-db-data:
+  transaction-db-data:
 
 # --- Network ---
 networks:

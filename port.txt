@@ -6,6 +6,7 @@ address-service = 3003
 search-service = 3004
 product-service = 3005
 cart-service = 3006
+transaction-service = 3007
 
 db
 
@@ -14,6 +15,7 @@ auth-db = 5434
 address-db = 5435
 product-db = 5436
 cart-db = 5437
+transaction-db = 5438
 
 grpc
 user-service = 50051
@@ -21,3 +23,4 @@ auth-service = 50052
 address-service = 50053
 product-service = 50054
 cart-service = 50055
+transaction-service = 50056
