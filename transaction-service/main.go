@@ -93,7 +93,9 @@ func main() {
 			log.Fatalf("failed to serve gRPC: %v", err)
 		}
 	}()
+	consumer := kafkax.NewConsumer()
 
+	consumer.Consume("payment.paid",kafkax.PaymentPaidHandler(SQLDB),)
 	select {}
 }
 
