@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package payment;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "proto/payment/";
+
+service PaymentService {
+  // create payment dari transaction
+  rpc CreatePayment (CreatePaymentRequest) returns (PaymentResponse);
+
+  // get payment by id (ownership check)
+  rpc GetPayment (GetPaymentRequest) returns (PaymentResponse);
+
+  // list payment by user (riwayat pembayaran user)
+  rpc ListUserPayments (ListPaymentRequest) returns (ListPaymentResponse);
+
+  // admin: list semua payment
+  rpc ListAllPayments (google.protobuf.Empty) returns (ListPaymentResponse);
+
+  // simulasi bayar (success)
+  rpc PayPayment (PayPaymentRequest) returns (PaymentResponse);
+}
+
+message Payment {
+  uint32 id = 1;
+  uint32 transaction_id = 2;
+  uint32 user_id = 3;
+  int64 amount = 4;
+  string status = 5;      // pending | paid | failed | expired
+  string method = 6;      // manual | dummy
+  string created_at = 7;
+  string paid_at = 8;
+}
+
+message CreatePaymentRequest {
+  uint32 transaction_id = 1;
+  uint32 user_id = 2;
+}
+
+message GetPaymentRequest {
+  uint32 id = 1;
+  uint32 user_id = 2;
+}
+
+message ListPaymentRequest {
+  uint32 user_id = 1;
+}
+
+message PayPaymentRequest {
+  uint32 id = 1;
+  uint32 user_id = 2;
+}
+
+message PaymentResponse {
+  Payment payment = 1;
+}
+
+message ListPaymentResponse {
+  repeated Payment payments = 1;
+}

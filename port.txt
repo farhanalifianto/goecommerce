@@ -7,6 +7,7 @@ search-service = 3004
 product-service = 3005
 cart-service = 3006
 transaction-service = 3007
+payment-service = 3008
 
 db
 
@@ -16,6 +17,7 @@ address-db = 5435
 product-db = 5436
 cart-db = 5437
 transaction-db = 5438
+payment-db = 5439
 
 grpc
 user-service = 50051
@@ -24,3 +26,4 @@ address-service = 50053
 product-service = 50054
 cart-service = 50055
 transaction-service = 50056
+payment-service = 50057

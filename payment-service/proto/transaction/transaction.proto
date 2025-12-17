@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package transaction;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "proto/transaction/";
+
+// =====================
+//      SERVICE
+// =====================
+service TransactionService {
+  rpc CreateTransaction (CreateTransactionRequest) returns (TransactionResponse);
+  rpc GetTransaction (GetTransactionRequest) returns (TransactionResponse);
+  rpc ListUserTransactions (ListTransactionRequest) returns (ListTransactionResponse);
+  rpc ListAllTransactions (google.protobuf.Empty) returns (ListTransactionResponse);
+  rpc CancelTransaction (CancelTransactionRequest) returns (CancelTransactionResponse);
+  rpc MarkAsPaid (MarkAsPaidRequest) returns (TransactionResponse);
+}
+
+// =====================
+//      ENTITIES
+// =====================
+message Transaction {
+  uint32 id = 1;
+  uint32 user_id = 2;
+  uint32 cart_id = 3;
+
+  AddressSnapshot address = 4;
+  repeated ProductSnapshot products = 5;
+
+  int64 total_amount = 6;
+  string status = 7;          // pending | paid | failed | cancelled
+  string created_at = 8;
+  string paid_at = 9;
+}
+
+message AddressSnapshot {
+  uint32 address_id = 1;
+  string name = 2;
+  string desc = 3;
+}
+
+message ProductSnapshot {
+  uint32 product_id = 1;
+  string name = 2;
+  int64 price = 3;
+  uint32 qty = 4;
+  int64 subtotal = 5;
+  uint32 category_id = 6;
+}
+
+// =====================
+//      REQUESTS
+// =====================
+message CreateTransactionRequest {
+  uint32 user_id = 1;
+  uint32 cart_id = 2;
+  uint32 address_id = 3;
+}
+
+message ListTransactionByUserRequest {
+    uint32 userId = 1;
+}
+
+message GetTransactionRequest {
+  uint32 id = 1;
+  uint32 user_id = 2;
+}
+
+message ListTransactionRequest {
+  uint32 user_id = 1;
+}
+
+message MarkAsPaidRequest {
+  uint32 id = 1;     // transaction_id
+}
+
+message CancelTransactionRequest {
+  uint32 id = 1;
+  uint32 user_id = 2;
+}
+
+// =====================
+//      RESPONSES
+// =====================
+message TransactionResponse {
+  Transaction transaction = 1;
+}
+
+message ListTransactionResponse {
+  repeated Transaction transactions = 1;
+}
+
+message GetAllTransactionsResponse {
+  repeated Transaction transactions = 1;
+}
+
+message CancelTransactionResponse {
+  string message = 1;
+}

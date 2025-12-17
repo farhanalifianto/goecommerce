@@ -5,3 +5,7 @@ protoc --go_out=. --go-grpc_out=. proto/auth/auth.proto
 protoc --go_out=. --go-grpc_out=. proto/product/product.proto
 protoc --go_out=. --go-grpc_out=. proto/cart/cart.proto
 protoc --go_out=. --go-grpc_out=. proto/transaction/transaction.proto
+protoc --go_out=. --go-grpc_out=. proto/payment/payment.proto
+
+
+docker compose up -d --build transaction-service

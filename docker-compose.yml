@@ -86,6 +86,20 @@ services:
     networks:
       - app-network
 
+  payment-db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: paymentdb
+    volumes:
+      - payment-db-data:/var/lib/postgresql/data
+    ports:
+      - "5439:5432"
+    networks:
+      - app-network
+
   # --- Services ---
   auth-service:
     build: ./auth-service
@@ -239,6 +253,32 @@ services:
       - "50056:50056"
     networks:
       - app-network
+
+  payment-service:
+    build: ./payment-service
+    container_name: payment-service
+    environment:
+      - DB_HOST=payment-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASS=postgres
+      - DB_NAME=paymentdb
+      - USER_SERVICE_URL=http://user-service:3001
+      - KAFKA_BROKER=kafka:9092
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      - user-service
+      - payment-db
+      - product-service
+      - address-service
+      - cart-service
+      - kafka
+      - redis
+    ports:
+      - "3008:3008"
+      - "50057:50057"
+    networks:
+      - app-network
   zookeeper:
     image: confluentinc/cp-zookeeper:7.7.1
     container_name: zookeeper
@@ -307,6 +347,7 @@ services:
       - product-service
       - cart-service
       - transaction-service
+      - payment-service
     networks:
       - app-network
 
@@ -318,6 +359,7 @@ volumes:
   product-db-data:
   cart-db-data:
   transaction-db-data:
+  payment-db-data:
 
 # --- Network ---
 networks:
