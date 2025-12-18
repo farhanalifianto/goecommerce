@@ -26,7 +26,7 @@ func InitProducer() {
 	for i := 1; i <= 5; i++ {
 		Producer, err = sarama.NewSyncProducer([]string{broker}, config)
 		if err == nil {
-			log.Printf("✅ Kafka producer connected to %s", broker)
+			log.Printf("Kafka producer connected to %s", broker)
 			return
 		}
 
