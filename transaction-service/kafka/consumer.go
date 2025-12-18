@@ -43,10 +43,10 @@ func NewConsumer() *Consumer {
 func (c *Consumer) Consume(topic string, handler func([]byte)) {
     pc, err := c.consumer.ConsumePartition(topic, 0, sarama.OffsetNewest)
     if err != nil {
-        log.Fatalf("❌ Failed to consume topic %s: %v", topic, err)
+        log.Fatalf("Failed to consume topic %s: %v", topic, err)
     }
 
-    log.Printf("📡 Listening on topic %s ...", topic)
+    log.Printf("Listening on topic %s ...", topic)
 
     go func() {
         for {
