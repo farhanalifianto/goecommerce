@@ -37,14 +37,14 @@ broker := os.Getenv("KAFKA_BROKER")
 		time.Sleep(5 * time.Second)
 	}
 
-	log.Fatalf("❌ Failed to start Kafka producer after retries: %v", err)
+	log.Fatalf("Failed to start Kafka producer after retries: %v", err)
 	return nil
 }
 
 func (p *Producer) PublishPaymentPaidEvent(event interface{}) {
 	data, err := json.Marshal(event)
 	if err != nil {
-		log.Printf(" Failed to marshal payment.paid event: %v", err)
+		log.Printf("Failed to marshal payment.paid event: %v", err)
 		return
 	}
 
@@ -55,7 +55,7 @@ func (p *Producer) PublishPaymentPaidEvent(event interface{}) {
 
 	_, _, err = p.producer.SendMessage(msg)
 	if err != nil {
-		log.Printf("❌ Failed to send payment.paid event: %v", err)
+		log.Printf("Failed to send payment.paid event: %v", err)
 		return
 	}
 
