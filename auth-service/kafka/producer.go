@@ -50,7 +50,7 @@ func PublishUserCreatedEvent(user interface{}) {
 
 	messageBytes, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("❌ Failed to marshal user event: %v", err)
+		log.Printf(" Failed to marshal user event: %v", err)
 		return
 	}
 
