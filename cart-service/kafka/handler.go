@@ -1,61 +1,60 @@
 package kafka
 
 import (
+	"context"
 	"encoding/json"
 	"log"
-
-	"cart-service/model"
 
 	"gorm.io/gorm"
 )
 
-type CartPaidEvent struct {
-    CartID   uint32 `json:"cart_id"`
-    OwnerID  uint `json:"owner_id"`
-    PaidAt   string `json:"paid_at"`
-    Products []struct {
-        ID  uint32 `json:"id"`
-        Qty uint32 `json:"qty"`
-    } `json:"products"`
+type CartCheckedOutEvent struct {
+	EventType string `json:"event_type"`
+	Data      struct {
+		CartID        uint32 `json:"cart_id"`
+		UserID        uint32 `json:"user_id"`
+		TransactionID uint32 `json:"transaction_id"`
+		TotalAmount   int64  `json:"total_amount"`
+		CheckedOutAt  string `json:"checked_out_at"`
+	} `json:"data"`
 }
 
-func CartPaidHandler(db *gorm.DB) func([]byte) {
-    return func(msg []byte) {
-        log.Println(" Received cart.paid event")
+type CartEventHandler struct {
+	DB *gorm.DB
+}
 
-        var event CartPaidEvent
-        if err := json.Unmarshal(msg, &event); err != nil {
-            log.Printf(" Failed to unmarshal event: %v", err)
-            return
-        }
+func NewCartEventHandler(db *gorm.DB) *CartEventHandler {
+	return &CartEventHandler{DB: db}
+}
 
-        var cart model.Cart
-        if err := db.First(&cart, event.CartID).Error; err != nil {
-            log.Printf("Cart %d not found: %v", event.CartID, err)
-            return
-        }
+func (h *CartEventHandler) HandleCartCheckedOut(msg []byte) {
+	var event CartCheckedOutEvent
 
-        // Update status
-        cart.Status = "paid"
+	if err := json.Unmarshal(msg, &event); err != nil {
+		log.Printf("Failed to unmarshal cart.paid event: %v", err)
+		return
+	}
 
-        if err := db.Save(&cart).Error; err != nil {
-            log.Printf("Failed to update cart %d to PAID: %v", cart.ID, err)
-            return
-        }
+	log.Printf("cart.paid received: cart_id=%d user_id=%d",
+		event.Data.CartID,
+		event.Data.UserID,
+	)
 
-        log.Printf("Cart %d status updated to PAID", cart.ID)
+	// idempotent update
+	res := h.DB.WithContext(context.Background()).
+		Table("carts").
+		Where("id = ? AND owner_id = ? AND status = ?", event.Data.CartID, event.Data.UserID, "active").
+		Update("status", "paid")
 
-        // OPTIONAL — create new empty cart for user
-        newCart := model.Cart{
-            OwnerID: event.OwnerID,
-            Status:  "active",
-            Products: []model.CartProduct{},
-        }
+	if res.Error != nil {
+		log.Printf("Failed to update cart status: %v", res.Error)
+		return
+	}
 
-        if err := db.Create(&newCart).Error; err != nil {
-            log.Printf("Failed to create new cart for user %d: %v", event.OwnerID, err)
-        } else {
-            log.Printf("Created new empty cart %d for user %d", newCart.ID, event.OwnerID)
-        }
-    }
+	if res.RowsAffected == 0 {
+		log.Printf("Cart already checked out or not active (cart_id=%d)", event.Data.CartID)
+		return
+	}
+
+	log.Printf("Cart %d marked as paid", event.Data.CartID)
 }

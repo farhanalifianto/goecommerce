@@ -124,6 +124,19 @@ func (s *TransactionServer) CreateTransaction(ctx context.Context, req *pb.Creat
 	// also clear admin/all cache
 	s.Redis.Del(ctx, "transactions:all")
 
+	event := map[string]interface{}{
+    "event_type": "cart.checked_out",
+    "data": map[string]interface{}{
+        "cart_id":        req.CartId,
+        "user_id":        req.UserId,
+        "transaction_id": id,
+        "total_amount":   total,
+        "checked_out_at": time.Now().Format(time.RFC3339),
+		},
+	}
+
+	s.Producer.PublishCartCheckedOutEvent(event)
+
 	return &pb.TransactionResponse{
 		Transaction: &pb.Transaction{
 			Id:          id,

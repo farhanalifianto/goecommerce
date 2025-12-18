@@ -37,68 +37,27 @@ broker := os.Getenv("KAFKA_BROKER")
 		time.Sleep(5 * time.Second)
 	}
 
-	log.Fatalf("❌ Failed to start Kafka producer after retries: %v", err)
+	log.Fatalf("Failed to start Kafka producer after retries: %v", err)
 	return nil
 }
 
-func (p *Producer) PublishAddressCreatedEvent(event interface{}) {
-	data, err := json.Marshal(event)
-	if err != nil {
-		log.Printf("❌ Failed to marshal event: %v", err)
-		return
-	}
+func (p *Producer) PublishCartCheckedOutEvent(event interface{}) {
+    data, err := json.Marshal(event)
+    if err != nil {
+        log.Printf("Failed to marshal event: %v", err)
+        return
+    }
 
-	msg := &sarama.ProducerMessage{
-		Topic: "address.created",
-		Value: sarama.ByteEncoder(data),
-	}
+    msg := &sarama.ProducerMessage{
+        Topic: "cart.paid",
+        Value: sarama.ByteEncoder(data),
+    }
 
-	_, _, err = p.producer.SendMessage(msg)
-	if err != nil {
-		log.Printf("Failed to send Kafka message: %v", err)
-		return
-	}
+    _, _, err = p.producer.SendMessage(msg)
+    if err != nil {
+        log.Printf("Failed to send cart.paid event: %v", err)
+        return
+    }
 
-	log.Printf("📤 Published address.created event: %v", string(data))
-}
-func (p *Producer) PublishAddressUpdatedEvent(event interface{}) {
-	data, err := json.Marshal(event)
-	if err != nil {
-		log.Printf("Failed to marshal event: %v", err)
-		return
-	}
-
-	msg := &sarama.ProducerMessage{
-		Topic: "address.updated",
-		Value: sarama.ByteEncoder(data),
-	}
-
-	_, _, err = p.producer.SendMessage(msg)
-	if err != nil {
-		log.Printf("Failed to send Kafka message: %v", err)
-		return
-	}
-
-	log.Printf("Published address.updated event: %v", string(data))
-}
-
-func (p *Producer) PublishAddressDeletedEvent(event interface{}) {
-	data, err := json.Marshal(event)
-	if err != nil {
-		log.Printf("Failed to marshal event: %v", err)
-		return
-	}
-
-	msg := &sarama.ProducerMessage{
-		Topic: "address.deleted",
-		Value: sarama.ByteEncoder(data),
-	}
-
-	_, _, err = p.producer.SendMessage(msg)
-	if err != nil {
-		log.Printf("Failed to send Kafka message: %v", err)
-		return
-	}
-
-	log.Printf("Published address.deleted event: %v", string(data))
+    log.Printf("Published cart.paid: %s", string(data))
 }

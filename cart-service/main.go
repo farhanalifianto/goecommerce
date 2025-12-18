@@ -97,7 +97,12 @@ func main() {
 		}
 	}()
 	consumer := kafkax.NewConsumer()
-	consumer.Consume("cart.paid", kafkax.CartPaidHandler(DB))
+	cartHandler := kafkax.NewCartEventHandler(DB)
+
+	consumer.Consume(
+		"cart.paid",
+		cartHandler.HandleCartCheckedOut,
+	)
 	select {}
 }
 
