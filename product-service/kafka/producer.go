@@ -41,18 +41,31 @@ func NewProducer() *Producer {
 	return nil
 }
 
-func (p *Producer) PublishProductCreatedEvent(event interface{}) {
+func (p *Producer) PublishProductCreatedEvent(event map[string]interface{}) {
 	p.publish("product.created", event)
 }
 
-func (p *Producer) PublishProductUpdatedEvent(event interface{}) {
+func (p *Producer) PublishProductUpdatedEvent(event map[string]interface{}) {
 	p.publish("product.updated", event)
 }
 
-func (p *Producer) PublishProductDeletedEvent(event interface{}) {
+func (p *Producer) PublishProductDeletedEvent(event map[string]interface{}) {
 	p.publish("product.deleted", event)
 }
+func (p *Producer) PublishCategoryCreatedEvent(event map[string]interface{}) {
+	p.publish("category.created", event)
+}
 
+func (p *Producer) PublishCategoryUpdatedEvent(event map[string]interface{}) {
+	p.publish("category.updated", event)
+}
+
+func (p *Producer) PublishCategoryDeletedEvent(event map[string]interface{}) {
+	p.publish("category.deleted", event)
+}
+func (p *Producer) PublishStockUpdatedEvent(event map[string]interface{}) {
+	p.publish("stock.updated", event)
+}
 func (p *Producer) publish(topic string, event interface{}) {
 	data, err := json.Marshal(event)
 	if err != nil {
@@ -63,6 +76,7 @@ func (p *Producer) publish(topic string, event interface{}) {
 	msg := &sarama.ProducerMessage{
 		Topic: topic,
 		Value: sarama.ByteEncoder(data),
+		Timestamp: time.Now(),
 	}
 
 	_, _, err = p.producer.SendMessage(msg)
@@ -71,5 +85,5 @@ func (p *Producer) publish(topic string, event interface{}) {
 		return
 	}
 
-	log.Printf("📤 Published %s event: %v", topic, string(data))
+	log.Printf(" Published %s: %s", topic, string(data))
 }

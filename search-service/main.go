@@ -104,6 +104,36 @@ func (h *ConsumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 			if err := h.esClient.DeleteAddress(id); err != nil {
 				log.Printf("Failed to delete index: %v", err)
 			}
+		case "product_created", "product_updated":
+		if err := h.esClient.IndexProduct(data); err != nil {
+			log.Printf("❌ Failed to index product: %v", err)
+		}
+
+		case "product_deleted":
+			idValue, ok := data["id"]
+			if !ok {
+				log.Println("product_deleted missing id")
+				continue
+			}
+			id := fmt.Sprintf("%v", idValue)
+
+			if err := h.esClient.DeleteProduct(id); err != nil {
+				log.Printf("❌ Failed to delete product: %v", err)
+			}
+
+		case "stock_updated":
+			productID, ok := data["product_id"]
+			if !ok {
+				log.Println("stock_updated missing product_id")
+				continue
+			}
+			qty := data["quantity"]
+
+			id := fmt.Sprintf("%v", productID)
+			if err := h.esClient.UpdateProductStock(id, qty); err != nil {
+				log.Printf("❌ Failed to update stock: %v", err)
+			}
+
 			
 		case "user_created", "user_updated":
 			if err := h.esClient.IndexUser(data); err != nil {
@@ -152,6 +182,10 @@ func main() {
     "address.deleted",
 	"user.created",
 	"user.updated",
+	"product.created",
+	"product.updated",
+	"product.deleted",
+	"stock.updated",
 	}
 
 
