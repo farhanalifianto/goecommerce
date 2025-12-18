@@ -61,13 +61,59 @@ func (es *ElasticClient) DeleteProduct(id string) error {
 	log.Printf("Deleted product %s", id)
 	return nil
 }
-func (es *ElasticClient) SearchProducts(query string) ([]map[string]interface{}, error) {
+func (es *ElasticClient) SearchProducts(
+	query string,
+	categoryID string,
+	minPrice string,
+	maxPrice string,
+) ([]map[string]interface{}, error) {
+
+	boolQuery := map[string]interface{}{
+		"must": []interface{}{
+			map[string]interface{}{
+				"multi_match": map[string]interface{}{
+					"query":  query,
+					"fields": []string{"name", "desc"},
+				},
+			},
+		},
+		"filter": []interface{}{},
+	}
+
+	// filter category
+	if categoryID != "" {
+		boolQuery["filter"] = append(
+			boolQuery["filter"].([]interface{}),
+			map[string]interface{}{
+				"term": map[string]interface{}{
+					"category_id": categoryID,
+				},
+			},
+		)
+	}
+
+	// filter price range
+	priceRange := map[string]interface{}{}
+	if minPrice != "" {
+		priceRange["gte"] = minPrice
+	}
+	if maxPrice != "" {
+		priceRange["lte"] = maxPrice
+	}
+	if len(priceRange) > 0 {
+		boolQuery["filter"] = append(
+			boolQuery["filter"].([]interface{}),
+			map[string]interface{}{
+				"range": map[string]interface{}{
+					"price": priceRange,
+				},
+			},
+		)
+	}
+
 	searchBody := map[string]interface{}{
 		"query": map[string]interface{}{
-			"multi_match": map[string]interface{}{
-				"query":  query,
-				"fields": []string{"name", "desc"},
-			},
+			"bool": boolQuery,
 		},
 	}
 

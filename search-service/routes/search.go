@@ -34,16 +34,21 @@ func RegisterSearchRoutes(app *fiber.App, authMiddleware fiber.Handler, esClient
 	})
 	s.Get("/product", func(c *fiber.Ctx) error {
 	q := c.Query("q")
+	categoryID := c.Query("category_id")
+	minPrice := c.Query("min_price")
+	maxPrice := c.Query("max_price")
+
 	if q == "" {
 		return c.Status(400).JSON(fiber.Map{"error": "missing query parameter ?q="})
 	}
 
-	results, err := esClient.SearchProducts(q)
+	results, err := esClient.SearchProducts(q, categoryID, minPrice, maxPrice)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
+
 	return c.JSON(results)
-	})
+})
 
 
 }
