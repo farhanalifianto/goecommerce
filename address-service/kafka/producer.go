@@ -37,14 +37,14 @@ broker := os.Getenv("KAFKA_BROKER")
 		time.Sleep(5 * time.Second)
 	}
 
-	log.Fatalf("❌ Failed to start Kafka producer after retries: %v", err)
+	log.Fatalf("Failed to start Kafka producer after retries: %v", err)
 	return nil
 }
 
 func (p *Producer) PublishAddressCreatedEvent(event interface{}) {
 	data, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("❌ Failed to marshal event: %v", err)
+		log.Printf("Failed to marshal event: %v", err)
 		return
 	}
 
@@ -59,7 +59,7 @@ func (p *Producer) PublishAddressCreatedEvent(event interface{}) {
 		return
 	}
 
-	log.Printf("📤 Published address.created event: %v", string(data))
+	log.Printf("Published address.created event: %v", string(data))
 }
 func (p *Producer) PublishAddressUpdatedEvent(event interface{}) {
 	data, err := json.Marshal(event)

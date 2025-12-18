@@ -37,7 +37,7 @@ func NewProducer() *Producer {
 		time.Sleep(5 * time.Second)
 	}
 
-	log.Fatalf("❌ Failed to start Kafka producer after retries: %v", err)
+	log.Fatalf("Failed to start Kafka producer after retries: %v", err)
 	return nil
 }
 
@@ -56,7 +56,7 @@ func (p *Producer) PublishProductDeletedEvent(event interface{}) {
 func (p *Producer) publish(topic string, event interface{}) {
 	data, err := json.Marshal(event)
 	if err != nil {
-		log.Printf("❌ Failed to marshal event: %v", err)
+		log.Printf("Failed to marshal event: %v", err)
 		return
 	}
 
@@ -67,7 +67,7 @@ func (p *Producer) publish(topic string, event interface{}) {
 
 	_, _, err = p.producer.SendMessage(msg)
 	if err != nil {
-		log.Printf("❌ Failed to send Kafka message: %v", err)
+		log.Printf("Failed to send Kafka message: %v", err)
 		return
 	}
 
