@@ -30,7 +30,7 @@ func InitProducer() {
 			return
 		}
 
-		log.Printf("⚠️ Failed to connect to Kafka (try %d/5): %v", i, err)
+		log.Printf("Failed to connect to Kafka (try %d/5): %v", i, err)
 		time.Sleep(3 * time.Second)
 	}
 
@@ -39,7 +39,7 @@ func InitProducer() {
 
 func PublishUserCreatedEvent(user interface{}) {
 	if Producer == nil {
-		log.Println("⚠️ Kafka producer is nil — event not sent")
+		log.Println(" Kafka producer is nil — event not sent")
 		return
 	}
 
@@ -60,8 +60,8 @@ func PublishUserCreatedEvent(user interface{}) {
 	}
 
 	if _, _, err := Producer.SendMessage(msg); err != nil {
-		log.Printf("❌ Failed to send Kafka message: %v", err)
+		log.Printf(" Failed to send Kafka message: %v", err)
 	} else {
-		log.Println("📤 User created event sent to Kafka")
+		log.Println("User created event sent to Kafka")
 	}
 }
