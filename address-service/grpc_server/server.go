@@ -99,7 +99,7 @@ func (s *AddressServer) GetAddress(ctx context.Context, req *pb.GetAddressReques
 func (s *AddressServer) ListAddresses(ctx context.Context, req *pb.ListAddressRequest) (*pb.ListAddressResponse, error) {
     cacheKey := fmt.Sprintf("addresses:%d", req.OwnerId)
 
-    // 1. Check Redis
+    //rtedias
     cached, err := s.Redis.Get(ctx, cacheKey).Result()
     if err == nil {
         var addresses []*pb.Address
@@ -108,14 +108,12 @@ func (s *AddressServer) ListAddresses(ctx context.Context, req *pb.ListAddressRe
         return &pb.ListAddressResponse{Addresses: addresses}, nil
     }
 
-    // Redis error tapi bukan key missing
     if err != redis.Nil {
         fmt.Println("Redis ERROR (bypass ke DB):", err)
     } else {
         fmt.Println("Redis MISS → DB query")
     }
 
-    // 2. Query DB
     query := `SELECT id, name, "desc", owner_id, created_at
               FROM addresses WHERE owner_id = $1`
 
@@ -140,7 +138,7 @@ func (s *AddressServer) ListAddresses(ctx context.Context, req *pb.ListAddressRe
         })
     }
 
-    // 3. Save to Redis dengan TTL 5 menit
+    // save redis
     jsonData, _ := json.Marshal(addresses)
     err = s.Redis.Set(ctx, cacheKey, jsonData, 5*time.Minute).Err()
     if err != nil {
@@ -195,7 +193,7 @@ func (s *AddressServer) UpdateAddress(ctx context.Context, req *pb.UpdateAddress
 //  DELETE
 
 func (s *AddressServer) DeleteAddress(ctx context.Context, req *pb.DeleteAddressRequest) (*pb.DeleteAddressResponse, error) {
-    // 1. Ambil owner_id address
+    // get owner id
     var ownerID uint32
     err := s.DB.QueryRowContext(ctx,
         `SELECT owner_id FROM addresses WHERE id=$1`, req.Id).
@@ -208,7 +206,7 @@ func (s *AddressServer) DeleteAddress(ctx context.Context, req *pb.DeleteAddress
         return nil, status.Errorf(codes.Internal, "query error: %v", err)
     }
 
-    // 2.user yg sama dengan address yang akan dihapus
+    // 
     if ownerID != req.OwnerId {
         return nil, status.Errorf(codes.PermissionDenied, "unauthorized")
     }
@@ -220,7 +218,7 @@ func (s *AddressServer) DeleteAddress(ctx context.Context, req *pb.DeleteAddress
         return nil, status.Errorf(codes.Internal, "delete error: %v", err)
     }
 
-    // 4. Bersihkan cache LIST address user ini
+    // apsu cache
     cacheKey := fmt.Sprintf("addresses:%d", ownerID)
     s.Redis.Del(ctx, cacheKey)
 
@@ -240,7 +238,6 @@ func (s *AddressServer) DeleteAddress(ctx context.Context, req *pb.DeleteAddress
 }
 
 
-// GET ALL (no cache)
 
 func (s *AddressServer) GetAllAddresses(ctx context.Context, _ *emptypb.Empty) (*pb.GetAllAddressesResponse, error) {
     query := `SELECT id, name, "desc", owner_id, created_at FROM addresses`
